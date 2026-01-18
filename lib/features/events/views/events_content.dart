@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -38,8 +37,6 @@ class _EventsContentState extends State<EventsContent> {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<EventsController>();
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
 
     return Obx(() {
       if (controller.isLoading.value &&
@@ -76,7 +73,7 @@ class _EventsContentState extends State<EventsContent> {
         child: CustomScrollView(
           slivers: [
             SliverPadding(
-              padding: EdgeInsets.all(isWideScreen ? 32 : 16),
+              padding: const EdgeInsets.all(16),
               sliver: SliverToBoxAdapter(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,10 +95,8 @@ class _EventsContentState extends State<EventsContent> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Events grid/list
-                    isWideScreen
-                        ? _buildEventsGrid(context, events)
-                        : _buildEventsList(context, events),
+                    // Events list (mobile only)
+                    _buildEventsList(context, events),
                   ],
                 ),
               ),

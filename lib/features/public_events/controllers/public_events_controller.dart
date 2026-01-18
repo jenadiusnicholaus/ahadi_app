@@ -9,9 +9,10 @@ class PublicEventsController extends GetxController {
   late final PublicEventService _publicEventService;
 
   // Paging controller for infinite scroll
-  final PagingController<int, EventModel> pagingController = PagingController(
-    firstPageKey: 1,
-  );
+  late PagingController<int, EventModel> pagingController;
+  
+  // Track if controller is initialized
+  bool _isInitialized = false;
 
   // Observable states
   final isLoading = false.obs;
@@ -34,37 +35,79 @@ class PublicEventsController extends GetxController {
   void onInit() {
     super.onInit();
     _publicEventService = PublicEventService(Get.find<ApiService>());
-
-    // Set up paging controller listener
+    _initializePagingController();
+    loadInitialData();
+  }
+  
+  void _initializePagingController() {
+    if (_isInitialized) return; // Prevent double initialization
+    
+    pagingController = PagingController<int, EventModel>(firstPageKey: 1);
     pagingController.addPageRequestListener((pageKey) {
       _fetchPage(pageKey);
     });
-
-    loadInitialData();
+    _isInitialized = true;
   }
 
   @override
   void onReady() {
     super.onReady();
-    // Ensure data is loaded when screen is ready
     if (eventTypes.isEmpty && !isLoading.value) {
       loadInitialData();
+    }
+  }
+  
+  /// Call this when returning to the screen to ensure proper state
+  void ensureLoaded() {
+    // Ensure initialized
+    if (!_isInitialized) {
+      _initializePagingController();
+    }
+    
+    // Always ensure event types are loaded
+    if (eventTypes.isEmpty) {
+      loadEventTypes();
+    }
+    
+    // Check various states that need refresh
+    if (_isInitialized) {
+      final hasItems = pagingController.itemList?.isNotEmpty ?? false;
+      final hasError = pagingController.error != null;
+      
+      // If there was an error, retry
+      if (hasError) {
+        pagingController.retryLastFailedRequest();
+      }
+      // If no items and not loading, force a refresh
+      else if (!hasItems) {
+        pagingController.refresh();
+      }
     }
   }
 
   @override
   void onClose() {
-    pagingController.dispose();
+    // Don't dispose if permanent - only dispose on full app close
+    if (_isInitialized) {
+      pagingController.dispose();
+      _isInitialized = false;
+    }
     super.onClose();
   }
 
   Future<void> _fetchPage(int pageKey) async {
+    // Check if controller was disposed
+    if (!_isInitialized) return;
+    
     try {
       final response = await _publicEventService.getPublicEvents(
         page: pageKey,
         eventTypeId: selectedEventTypeId.value,
         search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
       );
+
+      // Check again after async operation
+      if (!_isInitialized) return;
 
       final isLastPage = !response.hasMore;
 
@@ -75,7 +118,9 @@ class PublicEventsController extends GetxController {
       }
     } catch (error) {
       print('Error fetching page $pageKey: $error');
-      pagingController.error = error;
+      if (_isInitialized) {
+        pagingController.error = error;
+      }
     }
   }
 
@@ -104,23 +149,24 @@ class PublicEventsController extends GetxController {
 
   /// Refresh the events list
   Future<void> refreshEvents() async {
+    if (!_isInitialized) return;
     pagingController.refresh();
   }
 
   void filterByEventType(int? eventTypeId) {
     selectedEventTypeId.value = eventTypeId;
-    pagingController.refresh();
+    if (_isInitialized) pagingController.refresh();
   }
 
   void search(String query) {
     searchQuery.value = query;
-    pagingController.refresh();
+    if (_isInitialized) pagingController.refresh();
   }
 
   void clearFilters() {
     selectedEventTypeId.value = null;
     searchQuery.value = '';
-    pagingController.refresh();
+    if (_isInitialized) pagingController.refresh();
   }
 
   Future<void> selectEvent(EventModel selectedEvent) async {

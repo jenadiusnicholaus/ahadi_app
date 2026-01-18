@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -96,12 +95,9 @@ class _EditEventContentState extends State<EditEventContent> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 900;
-
     return Form(
       key: _formKey,
-      child: isWideScreen ? _buildWideLayout() : _buildMobileLayout(),
+      child: _buildMobileLayout(),
     );
   }
 

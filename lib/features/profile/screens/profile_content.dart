@@ -6,6 +6,7 @@ import '../services/profile_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/widgets/dashboard_shell.dart';
+import '../../../core/theme/app_theme.dart';
 
 /// Profile content widget for embedding in dashboard layout
 class ProfileContent extends StatefulWidget {
@@ -77,7 +78,7 @@ class _ProfileContentState extends State<ProfileContent> {
                     children: [
                       Text(
                         controller.errorMessage.value,
-                        style: const TextStyle(color: Colors.red),
+                        style: const TextStyle(color: AppColors.error),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
@@ -149,7 +150,7 @@ class _ProfileContentState extends State<ProfileContent> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
         children: [
@@ -227,7 +228,7 @@ class _ProfileContentState extends State<ProfileContent> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.blue.withOpacity(0.3),
+                      color: AppColors.primary.withOpacity(0.3),
                       width: 3,
                     ),
                     boxShadow: [
@@ -244,31 +245,31 @@ class _ProfileContentState extends State<ProfileContent> {
                             imageUrl: user!.fullProfilePictureUrl!,
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(
-                              color: Colors.grey[200],
-                              child: const Icon(
+                              color: AppColors.borderLight,
+                              child: Icon(
                                 Icons.person,
                                 size: 60,
-                                color: Colors.grey,
+                                color: AppColors.textHint,
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(
-                              color: Colors.grey[200],
-                              child: const Icon(
+                              color: AppColors.borderLight,
+                              child: Icon(
                                 Icons.person,
                                 size: 60,
-                                color: Colors.grey,
+                                color: AppColors.textHint,
                               ),
                             ),
                           )
                         : Container(
-                            color: Colors.blue.withOpacity(0.1),
+                            color: AppColors.primary.withOpacity(0.1),
                             child: Center(
                               child: Text(
                                 initial,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 48,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
+                                  color: AppColors.primary,
                                 ),
                               ),
                             ),
@@ -296,7 +297,7 @@ class _ProfileContentState extends State<ProfileContent> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.blue,
+                      color: AppColors.primary,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
@@ -318,7 +319,7 @@ class _ProfileContentState extends State<ProfileContent> {
           const SizedBox(height: 4),
           Text(
             user?.phone ?? '',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
           ),
           // Edit button for mobile (header is hidden on mobile)
           Builder(
@@ -345,7 +346,7 @@ class _ProfileContentState extends State<ProfileContent> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -390,10 +391,10 @@ class _ProfileContentState extends State<ProfileContent> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.1),
+            color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, size: 20, color: Colors.blue),
+          child: Icon(icon, size: 20, color: AppColors.primary),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -402,7 +403,7 @@ class _ProfileContentState extends State<ProfileContent> {
             children: [
               Text(
                 label,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 2),
               Text(
@@ -429,19 +430,19 @@ class _ProfileContentState extends State<ProfileContent> {
 
       switch (planType.toUpperCase()) {
         case 'VIP':
-          planColor = Colors.purple;
+          planColor = AppColors.premiumPurple;
           planIcon = Icons.diamond;
           break;
         case 'PREMIUM':
-          planColor = Colors.amber;
+          planColor = AppColors.warningAmber;
           planIcon = Icons.star;
           break;
         case 'BASIC':
-          planColor = Colors.blue;
+          planColor = AppColors.primary;
           planIcon = Icons.workspace_premium;
           break;
         default:
-          planColor = Colors.grey;
+          planColor = AppColors.textHint;
           planIcon = Icons.card_membership;
       }
 
@@ -479,9 +480,9 @@ class _ProfileContentState extends State<ProfileContent> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Current Plan',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
                         Text(
                           planName,
@@ -500,9 +501,7 @@ class _ProfileContentState extends State<ProfileContent> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: Navigate to subscriptions
-                  },
+                  onPressed: () => Get.toNamed('/subscriptions'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: planColor,
                     foregroundColor: Colors.white,
@@ -522,7 +521,7 @@ class _ProfileContentState extends State<ProfileContent> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -542,7 +541,7 @@ class _ProfileContentState extends State<ProfileContent> {
                     icon: Icons.event,
                     value: controller.ownedEventsCount.toString(),
                     label: 'Events',
-                    color: Colors.blue,
+                    color: AppColors.primary,
                   ),
                 ),
                 Obx(
@@ -550,7 +549,7 @@ class _ProfileContentState extends State<ProfileContent> {
                     icon: Icons.group,
                     value: controller.participatingEventsCount.toString(),
                     label: 'Participating',
-                    color: Colors.green,
+                    color: AppColors.success,
                   ),
                 ),
                 _buildStatItem(
@@ -590,7 +589,7 @@ class _ProfileContentState extends State<ProfileContent> {
         ),
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           textAlign: TextAlign.center,
         ),
       ],
@@ -602,7 +601,7 @@ class _ProfileContentState extends State<ProfileContent> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -662,14 +661,14 @@ class _ProfileContentState extends State<ProfileContent> {
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: isEnabled
-                ? Colors.green.withOpacity(0.1)
-                : Colors.grey.withOpacity(0.1),
+                ? AppColors.success.withOpacity(0.1)
+                : AppColors.textHint.withOpacity(0.1),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(
             icon,
             size: 18,
-            color: isEnabled ? Colors.green : Colors.grey,
+            color: isEnabled ? AppColors.success : AppColors.textHint,
           ),
         ),
         const SizedBox(width: 12),
@@ -678,13 +677,13 @@ class _ProfileContentState extends State<ProfileContent> {
             label,
             style: TextStyle(
               fontSize: 14,
-              color: isEnabled ? Colors.black : Colors.grey,
+              color: isEnabled ? null : AppColors.textHint,
             ),
           ),
         ),
         Icon(
           isEnabled ? Icons.check_circle : Icons.lock,
-          color: isEnabled ? Colors.green : Colors.grey,
+          color: isEnabled ? AppColors.success : AppColors.textHint,
           size: 20,
         ),
       ],
@@ -720,8 +719,8 @@ class _ProfileContentState extends State<ProfileContent> {
               icon: const Icon(Icons.delete_forever),
               label: const Text('Delete Account'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),

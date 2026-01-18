@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/widgets/dashboard_shell.dart';
@@ -6,7 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../controllers/events_controller.dart';
 import '../models/event_model.dart';
 import '../../profile/screens/profile_content.dart';
-import '../../chat/views/chat_screen.dart';
+import '../../chat/views/messages_tab_screen.dart';
 import '../widgets/event_calendar_card.dart';
 import 'events_content.dart';
 import 'event_detail_content.dart';
@@ -194,37 +193,25 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget? _buildSidebarContent(DashboardContent content) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
-    if (!isWideScreen) return null;
-
-    switch (content) {
-      case DashboardContent.events:
-        return _buildEventsSidebar();
-
-      case DashboardContent.eventDetail:
-        final event = dashboardController.contentArgs['event'] as EventModel?;
-        if (event == null) return null;
-        return _buildEventDetailSidebar(event);
-
-      case DashboardContent.contributions:
-        final event = dashboardController.contentArgs['event'] as EventModel?;
-        if (event == null) return null;
-        return _buildContributionsSidebar(event);
-
-      default:
-        return null;
-    }
+    // No sidebar on mobile
+    return null;
   }
 
   Widget? _buildFAB(DashboardContent content) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
-    if (isWideScreen) return null;
-
     switch (content) {
+      case DashboardContent.events:
+        return FloatingActionButton.extended(
+          onPressed: () {
+            dashboardController.navigateTo(DashboardContent.createEvent);
+          },
+          backgroundColor: AppColors.primary,
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text(
+            'Create Event',
+            style: TextStyle(color: Colors.white),
+          ),
+        );
+
       case DashboardContent.eventDetail:
         return FloatingActionButton.extended(
           onPressed: () {
@@ -265,285 +252,6 @@ class _DashboardPageState extends State<DashboardPage> {
       default:
         return null;
     }
-  }
-
-  // ============ SIDEBAR BUILDERS ============
-
-  Widget _buildEventsSidebar() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Stats
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Obx(
-            () => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    _buildStatItem(
-                      '${eventsController.myEvents.length}',
-                      'My Events',
-                      Icons.event,
-                    ),
-                    const SizedBox(width: 16),
-                    _buildStatItem(
-                      '${eventsController.invitedEvents.length}',
-                      'Joined',
-                      Icons.group,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Filters
-        Text(
-          'FILTER BY',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade500,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Tabs
-        Obx(
-          () => Column(
-            children: [
-              _buildFilterTile(
-                'My Events',
-                Icons.event_outlined,
-                eventsController.selectedTabIndex.value == 0,
-                () => eventsController.tabController.animateTo(0),
-              ),
-              _buildFilterTile(
-                'Joined Events',
-                Icons.group_outlined,
-                eventsController.selectedTabIndex.value == 1,
-                () => eventsController.tabController.animateTo(1),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        // Status filter
-        Text(
-          'STATUS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade500,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Obx(
-          () => Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildChip(
-                'All',
-                eventsController.selectedStatus.value == null,
-                () => eventsController.setStatusFilter(null),
-              ),
-              _buildChip(
-                'Active',
-                eventsController.selectedStatus.value == 'ACTIVE',
-                () => eventsController.setStatusFilter('ACTIVE'),
-              ),
-              _buildChip(
-                'Draft',
-                eventsController.selectedStatus.value == 'DRAFT',
-                () => eventsController.setStatusFilter('DRAFT'),
-              ),
-              _buildChip(
-                'Completed',
-                eventsController.selectedStatus.value == 'COMPLETED',
-                () => eventsController.setStatusFilter('COMPLETED'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEventDetailSidebar(EventModel event) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Event cover
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: event.displayCoverImage.isNotEmpty
-                ? Image.network(event.displayCoverImage, fit: BoxFit.cover)
-                : Container(
-                    color: AppColors.primary.withOpacity(0.1),
-                    child: Icon(
-                      Icons.event,
-                      size: 48,
-                      color: AppColors.primary.withOpacity(0.5),
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Progress
-        if (event.contributionTarget != null &&
-            event.contributionTarget! > 0) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'TZS ${_formatAmount(event.totalContributions)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              Text(
-                '${event.progressPercentage.toStringAsFixed(0)}%',
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: (event.progressPercentage / 100).clamp(0.0, 1.0),
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'of TZS ${_formatAmount(event.contributionTarget!)} target',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 24),
-        ],
-
-        // Quick actions
-        Text(
-          'QUICK ACTIONS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade500,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildActionTile(Icons.payments, 'View Contributions', () {
-          dashboardController.navigateTo(
-            DashboardContent.contributions,
-            args: {'event': event, 'eventTitle': event.title},
-          );
-        }),
-        _buildActionTile(Icons.people, 'Participants', () {
-          dashboardController.navigateTo(
-            DashboardContent.participants,
-            args: {'event': event, 'eventTitle': event.title},
-          );
-        }),
-        _buildActionTile(Icons.content_copy, 'Copy Join Code', () {
-          // Copy join code
-        }),
-        if (event.chatEnabled) _buildActionTile(Icons.chat, 'Open Chat', () {}),
-        _buildActionTile(Icons.edit, 'Edit Event', () {}),
-      ],
-    );
-  }
-
-  Widget _buildContributionsSidebar(EventModel event) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Stats
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Total Collected',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'TZS ${_formatAmount(event.totalContributions)}',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Actions
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              dashboardController.navigateTo(
-                DashboardContent.addContribution,
-                args: {'event': event, 'eventTitle': event.title},
-              );
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Add Contribution'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              dashboardController.navigateTo(
-                DashboardContent.paymentCheckout,
-                args: {'event': event, 'eventTitle': event.title},
-              );
-            },
-            icon: const Icon(Icons.phone_android),
-            label: const Text('Mobile Payment'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   // ============ HELPER WIDGETS ============
@@ -753,70 +461,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildMessagesContent() {
-    // Check if we're in event context
-    final event = dashboardController.contentArgs['event'] as EventModel?;
-    final eventTitle = dashboardController.contentArgs['eventTitle'] as String?;
-    
-    if (event != null) {
-      // Show event-specific chat
-      return ChatScreen(
-        eventId: event.id,
-        eventTitle: eventTitle ?? event.title,
-      );
-    }
-    
-    // Show placeholder if no event context
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Messages',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Select an event to view messages',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 80,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No Event Selected',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Open an event to chat with participants',
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // Show MessagesTabScreen with Inbox and Groups tabs
+    return const MessagesTabScreen();
   }
 }

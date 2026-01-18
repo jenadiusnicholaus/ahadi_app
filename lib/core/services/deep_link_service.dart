@@ -8,39 +8,8 @@ class DeepLinkService extends GetxService {
   /// Initialize deep link handling
   Future<DeepLinkService> init() async {
     // Handle initial deep link if app was opened via link
-    // This is handled differently on web vs mobile
-    if (kIsWeb) {
-      _handleWebDeepLink();
-    }
+    // Web handling removed - mobile only
     return this;
-  }
-
-  /// Handle web URL parameters
-  void _handleWebDeepLink() {
-    // On web, check the current URL for join parameters
-    final uri = Uri.base;
-    debugPrint('🔗 [DeepLink] Current URL: $uri');
-
-    // Check for join path: /join/CODE
-    if (uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'join') {
-      if (uri.pathSegments.length > 1) {
-        final joinCode = uri.pathSegments[1];
-        debugPrint('🔗 [DeepLink] Found join code: $joinCode');
-        // Delay to ensure app is ready
-        Future.delayed(const Duration(milliseconds: 500), () {
-          handleJoinCode(joinCode);
-        });
-      }
-    }
-
-    // Check for query parameter: ?join=CODE
-    final joinParam = uri.queryParameters['join'];
-    if (joinParam != null && joinParam.isNotEmpty) {
-      debugPrint('🔗 [DeepLink] Found join param: $joinParam');
-      Future.delayed(const Duration(milliseconds: 500), () {
-        handleJoinCode(joinParam);
-      });
-    }
   }
 
   /// Handle incoming deep link URL

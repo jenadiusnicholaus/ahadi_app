@@ -8,13 +8,20 @@ import '../../features/events/views/create_event_screen.dart';
 import '../../features/events/views/event_detail_screen.dart';
 import '../../features/events/views/participants_screen.dart';
 import '../../features/events/views/contributions_screen.dart';
+import '../../features/events/views/invitations_screen.dart';
 import '../../features/events/views/payment_checkout_screen.dart';
+import '../../features/events/views/invitation_templates_screen.dart';
 import '../../features/public_events/views/public_events_screen.dart';
 import '../../features/public_events/views/public_contribution_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/profile/bindings/profile_binding.dart';
-import '../../features/chat/views/chat_screen.dart';
+import '../../features/chat/views/messages_tab_screen.dart';
+import '../../features/subscription/views/subscription_plans_screen.dart';
+import '../../features/payments/views/wallet_screen.dart';
+import '../../features/payments/views/transaction_history_screen.dart';
+import '../../features/payments/views/disbursement_screen.dart';
+import '../../features/payments/views/payment_status_screen.dart';
 import '../bindings/app_bindings.dart';
 
 class AppRoutes {
@@ -35,6 +42,7 @@ class AppRoutes {
   static const String eventDetail = '/events/detail';
   static const String participants = '/participants';
   static const String contributions = '/contributions';
+  static const String invitations = '/invitations';
   static const String paymentCheckout = '/payment/checkout';
 
   // QR Scanner for joining events
@@ -45,6 +53,15 @@ class AppRoutes {
 
   // Subscriptions
   static const String subscriptions = '/subscriptions';
+
+  // Wallet & Payments
+  static const String wallet = '/wallet';
+  static const String transactions = '/transactions';
+  static const String disbursement = '/disbursement';
+  static const String paymentStatus = '/payment/status';
+
+  // Wedding Invitation Templates
+  static const String invitationTemplates = '/invitation-templates';
 
   // Public (no auth)
   static const String publicEvents = '/public/events';
@@ -108,6 +125,13 @@ class AppPages {
       binding: EventsBinding(),
       transition: Transition.rightToLeft,
     ),
+    // Invitations screen
+    GetPage(
+      name: AppRoutes.invitations,
+      page: () => const InvitationsScreen(),
+      binding: EventsBinding(),
+      transition: Transition.rightToLeft,
+    ),
     // Payment checkout screen
     GetPage(
       name: AppRoutes.paymentCheckout,
@@ -128,7 +152,7 @@ class AppPages {
     // Chat
     GetPage(
       name: AppRoutes.chat,
-      page: () => const ChatScreen(),
+      page: () => const MessagesTabScreen(),
       binding: EventsBinding(),
       transition: Transition.rightToLeft,
     ),
@@ -145,6 +169,36 @@ class AppPages {
       binding: ProfileBinding(),
       transition: Transition.rightToLeft,
     ),
+    // Subscription plans
+    GetPage(
+      name: AppRoutes.subscriptions,
+      page: () => const SubscriptionPlansScreen(),
+      transition: Transition.rightToLeft,
+    ),
+    // Wallet
+    GetPage(
+      name: AppRoutes.wallet,
+      page: () => const WalletScreen(),
+      transition: Transition.rightToLeft,
+    ),
+    // Transaction history
+    GetPage(
+      name: AppRoutes.transactions,
+      page: () => const TransactionHistoryScreen(),
+      transition: Transition.rightToLeft,
+    ),
+    // Disbursement
+    GetPage(
+      name: AppRoutes.disbursement,
+      page: () => const DisbursementScreen(),
+      transition: Transition.rightToLeft,
+    ),
+    // Payment status
+    GetPage(
+      name: AppRoutes.paymentStatus,
+      page: () => const PaymentStatusScreen(),
+      transition: Transition.fadeIn,
+    ),
     // Public routes (no auth required)
     GetPage(
       name: AppRoutes.publicEvents,
@@ -155,6 +209,13 @@ class AppPages {
     GetPage(
       name: AppRoutes.publicContribute,
       page: () => const PublicContributionScreen(),
+      transition: Transition.rightToLeft,
+    ),
+    // Wedding Invitation Templates
+    GetPage(
+      name: AppRoutes.invitationTemplates,
+      page: () => const InvitationTemplatesScreen(),
+      binding: EventsBinding(),
       transition: Transition.rightToLeft,
     ),
   ];

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/theme/app_theme.dart';
@@ -71,11 +70,8 @@ class _PaymentCheckoutContentState extends State<PaymentCheckoutContent> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isWideScreen ? 32 : 16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -104,24 +100,14 @@ class _PaymentCheckoutContentState extends State<PaymentCheckoutContent> {
           ),
           const SizedBox(height: 32),
 
-          // Main content
-          if (isWideScreen)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(flex: 2, child: _buildPaymentForm()),
-                const SizedBox(width: 32),
-                Expanded(flex: 1, child: _buildOrderSummary()),
-              ],
-            )
-          else
-            Column(
-              children: [
-                _buildPaymentForm(),
-                const SizedBox(height: 24),
-                _buildOrderSummary(),
-              ],
-            ),
+          // Main content (mobile layout)
+          Column(
+            children: [
+              _buildPaymentForm(),
+              const SizedBox(height: 24),
+              _buildOrderSummary(),
+            ],
+          ),
         ],
       ),
     );

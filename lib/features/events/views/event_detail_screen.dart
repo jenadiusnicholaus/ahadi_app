@@ -1,19 +1,26 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../../core/config/app_config.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/routes/app_routes.dart';
-import '../../../core/widgets/dashboard_layout.dart';
+import '../../../core/services/storage_service.dart';
 import '../../chat/views/chat_screen.dart';
+import '../../chat/services/websocket_service.dart';
+import '../../inbox/controllers/inbox_controller.dart';
+import '../../inbox/screens/compose_message_screen.dart';
+import '../../payments/views/event_wallet_screen.dart';
+import '../../payments/views/event_transactions_screen.dart';
 import '../controllers/events_controller.dart';
 import '../models/event_model.dart';
+import '../models/invitation_card_template_model.dart';
 import '../models/participant_model.dart';
+import '../models/contribution_model.dart';
 import '../widgets/event_calendar_card.dart';
 import '../widgets/participants_list.dart';
+import 'invitation_templates_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   const EventDetailScreen({super.key});
@@ -22,38 +29,45 @@ class EventDetailScreen extends StatefulWidget {
   State<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
-class _EventDetailScreenState extends State<EventDetailScreen> with SingleTickerProviderStateMixin {
+class _EventDetailScreenState extends State<EventDetailScreen> {
   final EventsController controller = Get.find<EventsController>();
-  late TabController _tabController;
-  int _selectedTabIndex = 0;
+  late PageController _pageController;
+  int _currentPageIndex = 0;
+  int _unreadCount = 0;
+  WebSocketService? _wsService;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(() {
-      setState(() {
-        _selectedTabIndex = _tabController.index;
-      });
-    });
+    _pageController = PageController();
     final args = Get.arguments as Map<String, dynamic>?;
     final eventId = args?['eventId'] as int?;
     if (eventId != null) {
       controller.loadEventDetail(eventId);
+      _loadUnreadCount(eventId);
+    }
+  }
+
+  Future<void> _loadUnreadCount(int eventId) async {
+    try {
+      _wsService = Get.find<WebSocketService>();
+      final count = await _wsService!.getUnreadCount(eventId);
+      if (mounted) {
+        setState(() => _unreadCount = count);
+      }
+    } catch (e) {
+      print('Failed to load unread count: $e');
     }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
     return Obx(() {
       if (controller.isLoading.value && controller.currentEvent.value == null) {
         return const Scaffold(
@@ -84,54 +98,668 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
         );
       }
 
-      if (isWideScreen) {
-        return DashboardLayout(
-          currentRoute: 'event-detail',
-          showBackButton: true,
-          onBack: () => Get.back(),
-          breadcrumb: DashboardBreadcrumb(
-            items: [
-              BreadcrumbItem(
-                label: 'Events',
-                onTap: () => Get.offAllNamed(AppRoutes.events),
-              ),
-              BreadcrumbItem(label: event.title),
-            ],
+      // Use PageView for mobile
+      return _buildPageViewLayout(event);
+    });
+  }
+
+  Widget _buildPageViewLayout(EventModel event) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: Text(_getPageTitle()),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => _shareEvent(event),
           ),
-          actions: [
-            OutlinedButton.icon(
-              onPressed: () => _shareEvent(event),
-              icon: const Icon(Icons.share, size: 18),
-              label: const Text('Share'),
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        ],
+      ),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentPageIndex = index;
+          });
+        },
+        children: [
+          _buildOverviewPage(event),
+          _buildContributionsPage(event),
+          _buildParticipantsPage(event),
+        ],
+      ),
+      bottomNavigationBar: Obx(() {
+        // Watch unreadCounts to trigger rebuild
+        final eventId = controller.currentEvent.value?.id;
+        final _ = eventId != null ? _wsService?.unreadCounts[eventId] : 0;
+
+        return BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          currentIndex: _currentPageIndex,
+          onTap: (index) {
+            if (index == 3) {
+              // Navigate to chat as separate page
+              Get.to(
+                () => ChatScreen(
+                  eventId: event.id,
+                  eventTitle: event.title,
+                  showAppBar: true,
                 ),
-                side: BorderSide(color: Colors.grey.shade300),
+              )?.then((_) {
+                // Mark messages as read and reset count when returning
+                _wsService?.markMessagesRead(event.id);
+                setState(() => _unreadCount = 0);
+              });
+            } else {
+              _pageController.animateToPage(
+                index,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            }
+          },
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: Colors.grey,
+          items: [
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.info_outline),
+              activeIcon: Icon(Icons.info),
+              label: 'Overview',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.volunteer_activism_outlined),
+              activeIcon: Icon(Icons.volunteer_activism),
+              label: 'Contribute',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline),
+              activeIcon: Icon(Icons.people),
+              label: 'People',
+            ),
+            BottomNavigationBarItem(
+              icon: _buildChatIconWithBadge(false),
+              activeIcon: _buildChatIconWithBadge(true),
+              label: 'Chat',
+            ),
+          ],
+        );
+      }),
+      floatingActionButton: _currentPageIndex == 1
+          ? FloatingActionButton.extended(
+              onPressed: () => _showContributeDialog(event),
+              backgroundColor: AppColors.primary,
+              icon: const Icon(Icons.volunteer_activism, color: Colors.white),
+              label: const Text(
+                'Contribute',
+                style: TextStyle(color: Colors.white),
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildChatIconWithBadge(bool isActive) {
+    // Use the reactive unreadCounts map from WebSocketService
+    final eventId = controller.currentEvent.value?.id;
+    final unreadCount = eventId != null
+        ? (_wsService?.unreadCounts[eventId] ?? _unreadCount)
+        : _unreadCount;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(isActive ? Icons.chat_bubble : Icons.chat_bubble_outline),
+        if (unreadCount > 0)
+          Positioned(
+            right: -6,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              child: Text(
+                unreadCount > 99 ? '99+' : unreadCount.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(width: 12),
-            ElevatedButton.icon(
-              onPressed: () => _showContributeDialog(event),
-              icon: const Icon(Icons.volunteer_activism, size: 18),
-              label: const Text('Contribute'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+          ),
+      ],
+    );
+  }
+
+  String _getPageTitle() {
+    switch (_currentPageIndex) {
+      case 0:
+        return 'Event Details';
+      case 1:
+        return 'Contributions';
+      case 2:
+        return 'Participants';
+      default:
+        return 'Event';
+    }
+  }
+
+  Widget _buildOverviewPage(EventModel event) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (event.displayCoverImage.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                event.displayCoverImage,
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.event,
+                      size: 64,
+                      color: Colors.grey.shade400,
+                    ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            event.title,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          if (event.description.isNotEmpty) ...[
+            Text(
+              event.description,
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (event.contributionTarget != null && event.contributionTarget! > 0)
+            _buildMobileProgressSection(event),
+          const SizedBox(height: 20),
+          // Quick Actions for Event Owner
+          _buildOwnerQuickActions(event),
+          const SizedBox(height: 20),
+          // Invitation Template Section (show for wedding events or events with template)
+          _buildInvitationTemplateSection(event),
+          const SizedBox(height: 20),
+          EventCalendarCard(
+            event: event,
+            onAddToCalendar: () => _addEventToCalendar(event),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build invitation template section for wedding events
+  Widget _buildInvitationTemplateSection(EventModel event) {
+    final template = event.invitationCardTemplate;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.pink.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.card_giftcard, color: Colors.pink.shade400, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Invitation Card Template',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (template != null) ...[
+            // Show selected template preview
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.pink.shade200, width: 2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(10),
+                    ),
+                    child: template.isCanvasTemplate
+                        ? _buildCanvasTemplatePreview(template)
+                        : (template.previewImage != null
+                              ? Image.network(
+                                  template.previewImage!,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _buildTemplateFallback(template, 120),
+                                )
+                              : _buildTemplateFallback(template, 120)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                template.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                template.categoryDisplay,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _changeTemplate(event),
+                          icon: const Icon(Icons.swap_horiz, size: 18),
+                          label: const Text('Change'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.pink.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // No template selected
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.pink.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.pink.shade100),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.style_outlined,
+                    size: 40,
+                    color: Colors.pink.shade300,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No template selected',
+                    style: TextStyle(
+                      color: Colors.pink.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Choose a beautiful template for your wedding invitations',
+                    style: TextStyle(color: Colors.pink.shade400, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => _changeTemplate(event),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Select Template'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.pink.shade400,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-          sidebarContent: _buildEventSidebarContent(event),
-          content: _buildWebContent(context, event, screenWidth),
+        ],
+      ),
+    );
+  }
+
+  /// Build canvas template preview
+  Widget _buildCanvasTemplatePreview(InvitationCardTemplateModel template) {
+    final primaryColor = _parseTemplateColor(template.primaryColor);
+    final secondaryColor = _parseTemplateColor(template.secondaryColor);
+    final accentColor = _parseTemplateColor(template.accentColor);
+    final style = template.canvasStyle ?? 'elegant';
+
+    return Container(
+      height: 160,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [accentColor, accentColor.withValues(alpha: 0.95)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          if (style == 'floral') ...[
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Text('🌸', style: TextStyle(fontSize: 16)),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Text('🌺', style: TextStyle(fontSize: 16)),
+            ),
+          ],
+          Positioned.fill(
+            child: Container(
+              margin: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                border: Border.all(color: primaryColor, width: 1),
+              ),
+            ),
+          ),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'WEDDING INVITATION',
+                  style: TextStyle(
+                    color: secondaryColor.withValues(alpha: 0.6),
+                    fontSize: 8,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your Names Here',
+                  style: TextStyle(
+                    color: secondaryColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w300,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(width: 30, height: 1, color: primaryColor),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade600,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Canvas',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build template fallback when image fails
+  Widget _buildTemplateFallback(
+    InvitationCardTemplateModel template,
+    double height,
+  ) {
+    return Container(
+      height: height,
+      color: _parseTemplateColor(template.primaryColor),
+      child: const Center(
+        child: Icon(Icons.card_giftcard, size: 40, color: Colors.white),
+      ),
+    );
+  }
+
+  /// Parse template hex color
+  Color _parseTemplateColor(String hexColor) {
+    try {
+      return Color(int.parse(hexColor.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return Colors.grey;
+    }
+  }
+
+  /// Navigate to template selection and update event
+  Future<void> _changeTemplate(EventModel event) async {
+    final result = await Get.to<InvitationCardTemplateModel>(
+      () => const InvitationTemplatesScreen(),
+      arguments: {
+        'selectionMode': true,
+        'selectedTemplateId': event.invitationCardTemplateId,
+        'eventId': event.id,
+        'eventTitle': event.title,
+      },
+    );
+
+    if (result != null) {
+      // Update the event with new template
+      try {
+        await controller.updateEventTemplate(event.id, result.id);
+        Get.snackbar(
+          'Success',
+          'Invitation template updated to ${result.name}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          'Failed to update template: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
         );
       }
+    }
+  }
 
-      // Mobile layout
-      return _buildMobileLayout(context, event);
-    });
+  /// Build quick actions for event owner (wallet, invite, etc.)
+  Widget _buildOwnerQuickActions(EventModel event) {
+    // Check if current user is the event owner
+    final currentUserId = Get.find<StorageService>().getUser()?['id'] ?? 0;
+    final isOwner = event.ownerId == currentUserId;
+
+    // Only show owner-specific actions if user is the owner
+    if (!isOwner) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Owner Actions',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // First row: Wallet & Transactions
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickActionCard(
+                  icon: Icons.account_balance_wallet,
+                  label: 'Event Wallet',
+                  color: Colors.green,
+                  onTap: () => Get.to(() => EventWalletScreen(event: event)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickActionCard(
+                  icon: Icons.receipt_long,
+                  label: 'Transactions',
+                  color: Colors.purple,
+                  onTap: () => Get.to(() => EventTransactionsScreen(event: event)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Second row: Invite & Share
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickActionCard(
+                  icon: Icons.person_add,
+                  label: 'Invite',
+                  color: Colors.blue,
+                  onTap: () => _showInviteDialog(event),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickActionCard(
+                  icon: Icons.share,
+                  label: 'Share',
+                  color: Colors.orange,
+                  onTap: () => _shareEvent(event),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionCard({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color.withOpacity(0.9),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContributionsPage(EventModel event) {
+    return _buildContributionsTab(event);
+  }
+
+  Widget _buildParticipantsPage(EventModel event) {
+    return ParticipantsList(
+      eventId: event.id.toString(),
+      compact: false,
+      onSendMessage: (participant) =>
+          _sendMessageToParticipant(participant, event),
+    );
+  }
+
+  Widget _buildChatPage(EventModel event) {
+    if (!event.chatEnabled) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            const Text('Chat is disabled', style: TextStyle(fontSize: 18)),
+            const SizedBox(height: 8),
+            Text(
+              'The event organizer has disabled chat',
+              style: TextStyle(color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ChatScreen(
+      eventId: event.id,
+      eventTitle: event.title,
+      showAppBar: false,
+    );
   }
 
   // ==================== WEB SIDEBAR CONTENT ====================
@@ -264,6 +892,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
         ),
         if (event.chatEnabled)
           _buildSidebarAction(Icons.chat, 'Open Chat', () => _openChat(event)),
+        _buildSidebarAction(
+          Icons.account_balance_wallet,
+          'Event Wallet',
+          () => Get.to(() => EventWalletScreen(event: event)),
+        ),
         _buildSidebarAction(Icons.edit, 'Edit Event', () {}),
       ],
     );
@@ -665,154 +1298,25 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
   }
 
   // ==================== MOBILE LAYOUT ====================
-  Widget _buildMobileLayout(BuildContext context, EventModel event) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: Text(event.title),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () => _shareEvent(event),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Event Cover
-          if (event.displayCoverImage.isNotEmpty)
-            Image.network(
-              event.displayCoverImage,
-              height: 200,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  height: 200,
-                  color: Colors.grey.shade300,
-                  child: Icon(
-                    Icons.event,
-                    size: 64,
-                    color: Colors.grey.shade400,
-                  ),
-                );
-              },
-            ),
-          // Tab Content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildDiscoverTab(event),
-                _buildContributionsTab(event),
-                _buildMessagesTab(event),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
-      floatingActionButton: _selectedTabIndex == 1
-          ? FloatingActionButton.extended(
-              onPressed: () => _showContributeDialog(event),
-              backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.volunteer_activism, color: Colors.white),
-              label: const Text(
-                'Contribute',
-                style: TextStyle(color: Colors.white),
-              ),
-            )
-          : null,
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      currentIndex: _selectedTabIndex,
-      onTap: (index) {
-        _tabController.animateTo(index);
-      },
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.explore),
-          label: 'Discover',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.volunteer_activism),
-          label: 'Contributions',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.message),
-          label: 'Messages',
-        ),
-      ],
-      selectedItemColor: AppColors.primary,
-      unselectedItemColor: Colors.grey,
-    );
-  }
-
   // ==================== TAB VIEWS ====================
-  Widget _buildDiscoverTab(EventModel event) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Quick Stats
-          if (event.contributionTarget != null && event.contributionTarget! > 0)
-            _buildMobileProgressSection(event),
-          const SizedBox(height: 20),
-          // Calendar section
-          EventCalendarCard(
-            event: event,
-            onAddToCalendar: () => _addEventToCalendar(event),
-          ),
-          const SizedBox(height: 20),
-          // Participants List
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Participants',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              TextButton(
-                onPressed: () => _showFullEventDetails(event),
-                child: const Text('View Full Details'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ParticipantsList(
-            eventId: event.id.toString(),
-            compact: true,
-            onViewAll: () => Get.toNamed(AppRoutes.participants, arguments: {
-              'eventId': event.id,
-              'eventTitle': event.title,
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildContributionsTab(EventModel event) {
     return Obx(() {
       if (controller.contributions.isEmpty) {
         controller.loadEventContributions(event.id);
       }
-      
+
       final contributions = controller.contributions;
-      
+
       if (contributions.isEmpty) {
         return Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.volunteer_activism, size: 64, color: Colors.grey.shade400),
+              Icon(
+                Icons.volunteer_activism,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
               const SizedBox(height: 16),
               const Text(
                 'No contributions yet',
@@ -827,7 +1331,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
           ),
         );
       }
-      
+
       return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: contributions.length,
@@ -835,93 +1339,93 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
           final contribution = contributions[index];
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                child: Icon(
-                  Icons.volunteer_activism,
-                  color: AppColors.primary,
-                ),
-              ),
-              title: Text(
-                contribution.participantName ?? 'Anonymous',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(
-                DateFormat('MMM d, y').format(contribution.createdAt),
-              ),
-              trailing: Text(
-                'TZS ${_formatAmount(contribution.amount)}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: AppColors.primary.withValues(
+                          alpha: 0.1,
+                        ),
+                        child: Text(
+                          (contribution.participantName ?? 'A')[0]
+                              .toUpperCase(),
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              contribution.participantName ?? 'Anonymous',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              DateFormat(
+                                'MMM d, y',
+                              ).format(contribution.createdAt),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'TZS ${_formatAmount(contribution.amount)}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _sendMessageToContributor(contribution, event),
+                      icon: Icon(
+                        Icons.message_outlined,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                      label: Text(
+                        'Send Message',
+                        style: TextStyle(color: AppColors.primary),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
         },
       );
     });
-  }
-
-  Widget _buildMessagesTab(EventModel event) {
-    if (!event.chatEnabled) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            const Text(
-              'Chat is not enabled',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'The event organizer has disabled chat',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    // Show a preview with button to open full chat (like WhatsApp)
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.chat, size: 64, color: AppColors.primary.withOpacity(0.7)),
-          const SizedBox(height: 16),
-          const Text(
-            'Event Chat',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Chat with other participants',
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => Get.to(
-              () => ChatScreen(
-                eventId: event.id.toString(),
-                eventTitle: event.title,
-              ),
-            ),
-            icon: const Icon(Icons.chat_bubble),
-            label: const Text('Open Chat'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showFullEventDetails(EventModel event) {
@@ -1039,6 +1543,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
           onSelected: (value) => _handleMenuAction(value, event),
           itemBuilder: (context) => [
             const PopupMenuItem(value: 'edit', child: Text('Edit Event')),
+            const PopupMenuItem(
+              value: 'send_invitations',
+              child: Row(
+                children: [
+                  Icon(Icons.mail_outline, size: 20),
+                  SizedBox(width: 8),
+                  Text('Send Invitations'),
+                ],
+              ),
+            ),
             const PopupMenuItem(value: 'settings', child: Text('Settings')),
             const PopupMenuItem(
               value: 'delete',
@@ -1244,18 +1758,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
           Row(
             children: [
               Expanded(
-                child: _buildMobileActionButton(
-                  Icons.mail,
-                  'Invitations',
-                  () {
-                    // TODO: Add invitations route to AppRoutes
-                    Get.snackbar(
-                      'Coming Soon',
-                      'Invitations view will be available soon',
-                      snackPosition: SnackPosition.BOTTOM,
+                child: _buildMobileActionButton(Icons.mail, 'Invitations', () {
+                  final event = controller.currentEvent.value;
+                  if (event != null) {
+                    Get.toNamed(
+                      AppRoutes.invitations,
+                      arguments: {
+                        'eventId': event.id,
+                        'eventTitle': event.title,
+                        'eventTypeSlug': event.eventType?.slug,
+                      },
                     );
-                  },
-                ),
+                  }
+                }),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1289,8 +1804,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
                 child: _buildMobileActionButton(
                   Icons.chat,
                   'Chat',
-                  () => Get.to(() => const ChatScreen(), 
-                    arguments: {'eventId': event.id}),
+                  () => Get.to(
+                    () => ChatScreen(
+                      eventId: event.id,
+                      eventTitle: event.title,
+                      showAppBar: true,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1397,8 +1917,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
     );
   }
 
-
-
   // ==================== HELPERS ====================
   Widget _buildBadge(String text, Color color) {
     return Container(
@@ -1446,26 +1964,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> with SingleTicker
   }
 
   void _shareEvent(EventModel event) {
-    final shareLink = '${AppConfig.webAppBaseUrl}/join/${event.joinCode}';
     final shareText =
         '''
 🎉 You're invited to "${event.title}"!
 
-Join using this link:
-$shareLink
-
-Or use code: ${event.joinCode}
+Join using code: ${event.joinCode}
 
 Powered by Ahadi - Event Contributions Made Easy
 ''';
 
-    if (kIsWeb) {
-      // On web, copy to clipboard and show dialog with options
-      _showShareDialog(event, shareLink, shareText);
-    } else {
-      // On mobile, use native share
-      Share.share(shareText, subject: 'Join ${event.title}');
-    }
+    // On mobile, use native share
+    Share.share(shareText, subject: 'Join ${event.title}');
   }
 
   void _showShareDialog(EventModel event, String shareLink, String shareText) {
@@ -1604,18 +2113,17 @@ Powered by Ahadi - Event Contributions Made Easy
           children: [
             Text(
               event.title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             _buildCalendarInfoRow(
               Icons.schedule,
               'Start',
-              event.startDate != null 
-                ? DateFormat('EEEE, MMM d, y • h:mm a').format(event.startDate!)
-                : 'Not set',
+              event.startDate != null
+                  ? DateFormat(
+                      'EEEE, MMM d, y • h:mm a',
+                    ).format(event.startDate!)
+                  : 'Not set',
             ),
             if (event.endDate != null) ...[
               const SizedBox(height: 8),
@@ -1625,21 +2133,18 @@ Powered by Ahadi - Event Contributions Made Easy
                 DateFormat('EEEE, MMM d, y • h:mm a').format(event.endDate!),
               ),
             ],
-            if (event.location?.isNotEmpty == true) ...[
+            if (event.location.isNotEmpty) ...[
               const SizedBox(height: 8),
               _buildCalendarInfoRow(
                 Icons.location_on,
                 'Location',
-                event.location!,
+                event.location,
               ),
             ],
             const SizedBox(height: 16),
             Text(
               'This will open your device calendar app to add this event.',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             ),
           ],
         ),
@@ -1712,21 +2217,15 @@ Powered by Ahadi - Event Contributions Made Easy
       snackPosition: SnackPosition.BOTTOM,
     );
   }
-  
+
   void _openChat(EventModel event) {
     Get.to(
-      () => ChatScreen(
-        eventId: event.id.toString(),
-        eventTitle: event.title,
-      ),
+      () => ChatScreen(eventId: event.id.toString(), eventTitle: event.title),
     );
   }
-  
+
   void _showContributeDialog(EventModel event) {
-    Get.toNamed(
-      AppRoutes.paymentCheckout,
-      arguments: {'event': event},
-    );
+    Get.toNamed(AppRoutes.paymentCheckout, arguments: {'event': event});
   }
 
   void _handleMenuAction(String action, EventModel event) {
@@ -1735,9 +2234,208 @@ Powered by Ahadi - Event Contributions Made Easy
         break;
       case 'settings':
         break;
+      case 'send_invitations':
+        _showSendInvitationsDialog(event);
+        break;
       case 'delete':
         _confirmDelete(event);
         break;
+    }
+  }
+
+  void _showSendInvitationsDialog(EventModel event) {
+    // Check if event has invitation template
+    if (event.invitationCardTemplate == null) {
+      Get.dialog(
+        AlertDialog(
+          title: const Text('No Invitation Template'),
+          content: const Text(
+            'This event does not have an invitation card template set up. '
+            'Please create one first before sending invitations.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Get.back(), child: const Text('OK')),
+          ],
+        ),
+      );
+      return;
+    }
+
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Send Invitations'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Send invitation cards to participants of this event.'),
+            const SizedBox(height: 16),
+            Text(
+              'Template: ${event.invitationCardTemplate!.name}',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Get.back();
+              await _sendInvitations(event);
+            },
+            icon: const Icon(Icons.send, size: 18),
+            label: const Text('Send to All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendInvitations(EventModel event) async {
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      final inboxController = Get.find<InboxController>();
+      await inboxController.sendInvitation(eventId: event.id, sendToSelf: true);
+
+      Get.back(); // Close loading
+      Get.snackbar(
+        'Success',
+        'Invitation cards are being sent to participants',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.back(); // Close loading
+      Get.snackbar(
+        'Error',
+        'Failed to send invitations: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  void _sendMessageToParticipant(
+    ParticipantModel participant,
+    EventModel event,
+  ) {
+    if (participant.userId == null) {
+      // Show contact options dialog for participants without user accounts
+      _showContactOptionsDialog(
+        name: participant.name,
+        phone: participant.phone,
+        email: participant.email,
+      );
+      return;
+    }
+
+    Get.to(
+      () => ComposeMessageScreen(
+        recipientId: participant.userId,
+        recipientName: participant.name,
+        event: event,
+      ),
+    );
+  }
+
+  void _sendMessageToContributor(
+    ContributionModel contribution,
+    EventModel event,
+  ) {
+    // Find the participant to get contact info
+    final participant = controller.participants.firstWhereOrNull(
+      (p) => p.id == contribution.participantId,
+    );
+
+    if (participant?.userId == null) {
+      // Show contact options dialog
+      _showContactOptionsDialog(
+        name: contribution.contributorName,
+        phone: contribution.participantPhone ?? participant?.phone ?? '',
+        email: participant?.email ?? '',
+      );
+      return;
+    }
+
+    Get.to(
+      () => ComposeMessageScreen(
+        recipientId: participant!.userId,
+        recipientName: contribution.contributorName,
+        event: event,
+      ),
+    );
+  }
+
+  void _showContactOptionsDialog({
+    required String name,
+    required String phone,
+    required String email,
+  }) {
+    Get.dialog(
+      AlertDialog(
+        title: Text('Contact $name'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'This person doesn\'t have an app account. You can contact them via:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            if (phone.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.phone, color: Colors.green),
+                title: Text(phone),
+                subtitle: const Text('Call or SMS'),
+                onTap: () {
+                  Get.back();
+                  _launchPhone(phone);
+                },
+              ),
+            if (email.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.email, color: Colors.blue),
+                title: Text(email),
+                subtitle: const Text('Send email'),
+                onTap: () {
+                  Get.back();
+                  _launchEmail(email);
+                },
+              ),
+            if (phone.isEmpty && email.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'No contact information available',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _launchPhone(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  void _launchEmail(String email) async {
+    final uri = Uri.parse('mailto:$email');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
     }
   }
 

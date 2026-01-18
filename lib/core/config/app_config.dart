@@ -95,6 +95,7 @@ class ApiEndpoints {
       '/events/$eventId/contributions/';
   static String eventMessages(int eventId) => '/events/$eventId/messages/';
   static String markMessagesRead(int eventId) => '/chat/events/$eventId/read/';
+  static String chatUnreadCount(int eventId) => '/chat/events/$eventId/unread/';
   static String eventAnnouncements(int eventId) =>
       '/events/$eventId/announcements/';
   static String eventInvitations(int eventId) =>
@@ -115,6 +116,36 @@ class ApiEndpoints {
       '${AppConfig.paymentsPrefix}/events/$eventId/disburse/';
   static String get paymentTransactions =>
       '${AppConfig.paymentsPrefix}/transactions/';
+  static String paymentEventTransactions(int eventId) =>
+      '${AppConfig.paymentsPrefix}/events/$eventId/transactions/';
+  static String paymentEventPayout(int eventId) =>
+      '${AppConfig.paymentsPrefix}/events/$eventId/payout/';
+  static String paymentEventDisbursements(int eventId) =>
+      '${AppConfig.paymentsPrefix}/events/$eventId/disbursements/';
+  static String get paymentMyDisbursements =>
+      '${AppConfig.paymentsPrefix}/disbursements/';
+
+  // Wedding Invitation Templates
+  static String get invitationTemplates => '/invitation-templates/';
+  static String get invitationTemplateCategories =>
+      '/invitation-templates/categories/';
+  static String get invitationTemplatesByCategory =>
+      '/invitation-templates/by_category/';
+  static String get freeInvitationTemplates =>
+      '/invitation-templates/free_templates/';
+  static String get premiumInvitationTemplates =>
+      '/invitation-templates/premium_templates/';
+  static String invitationTemplateDetail(int templateId) =>
+      '/invitation-templates/$templateId/';
+
+  // Wedding Invitations
+  static String get weddingInvitations => '/wedding-invitations/';
+  static String weddingInvitationDetail(int invitationId) =>
+      '/wedding-invitations/$invitationId/';
+  static String weddingInvitationGenerateCard(int invitationId) =>
+      '/wedding-invitations/$invitationId/generate_card/';
+  static String get weddingInvitationsBulkCreate =>
+      '/wedding-invitations/bulk_create/';
 }
 
 class StorageKeys {

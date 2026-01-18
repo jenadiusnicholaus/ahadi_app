@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -119,17 +119,9 @@ class ProfileController extends GetxController {
       );
 
       if (image != null) {
-        if (kIsWeb) {
-          // For web, use bytes
-          final bytes = await image.readAsBytes();
-          selectedImageBytes.value = bytes;
-          selectedImageName.value = image.name;
-          await _uploadProfilePicture();
-        } else {
-          // For mobile, use File
-          selectedImage.value = File(image.path);
-          await _uploadProfilePicture();
-        }
+        // For mobile, use File
+        selectedImage.value = File(image.path);
+        await _uploadProfilePicture();
       }
     } catch (e) {
       Get.snackbar(
@@ -153,17 +145,9 @@ class ProfileController extends GetxController {
       );
 
       if (image != null) {
-        if (kIsWeb) {
-          // For web, use bytes
-          final bytes = await image.readAsBytes();
-          selectedImageBytes.value = bytes;
-          selectedImageName.value = image.name;
-          await _uploadProfilePicture();
-        } else {
-          // For mobile, use File
-          selectedImage.value = File(image.path);
-          await _uploadProfilePicture();
-        }
+        // For mobile, use File
+        selectedImage.value = File(image.path);
+        await _uploadProfilePicture();
       }
     } catch (e) {
       Get.snackbar(
@@ -180,22 +164,14 @@ class ProfileController extends GetxController {
   Future<void> _uploadProfilePicture() async {
     // Check if we have image data to upload
     debugPrint('📸 [ProfileController] _uploadProfilePicture called');
-    debugPrint('📸 [ProfileController] kIsWeb: $kIsWeb');
     debugPrint(
       '📸 [ProfileController] selectedImage.value: ${selectedImage.value}',
     );
-    debugPrint(
-      '📸 [ProfileController] selectedImageBytes.value: ${selectedImageBytes.value?.length ?? 0} bytes',
-    );
 
-    if (!kIsWeb && selectedImage.value == null) {
+    if (selectedImage.value == null) {
       debugPrint(
-        '📸 [ProfileController] Mobile - no image selected, returning',
+        '📸 [ProfileController] No image selected, returning',
       );
-      return;
-    }
-    if (kIsWeb && selectedImageBytes.value == null) {
-      debugPrint('📸 [ProfileController] Web - no image bytes, returning');
       return;
     }
 
@@ -204,24 +180,13 @@ class ProfileController extends GetxController {
     try {
       ProfileResponse response;
 
-      if (kIsWeb) {
-        // For web, use bytes
-        debugPrint('📸 [ProfileController] Uploading via bytes (web)');
-        response = await _profileService.updateProfilePictureFromBytes(
-          selectedImageBytes.value!,
-          selectedImageName.value.isNotEmpty
-              ? selectedImageName.value
-              : 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
-        );
-      } else {
-        // For mobile, use File
-        debugPrint(
-          '📸 [ProfileController] Uploading via File (mobile): ${selectedImage.value!.path}',
-        );
-        response = await _profileService.updateProfilePicture(
-          selectedImage.value!,
-        );
-      }
+      // For mobile, use File
+      debugPrint(
+        '📸 [ProfileController] Uploading via File: ${selectedImage.value!.path}',
+      );
+      response = await _profileService.updateProfilePicture(
+        selectedImage.value!,
+      );
 
       debugPrint(
         '📸 [ProfileController] Upload response: success=${response.success}, message=${response.message}',
@@ -321,16 +286,15 @@ class ProfileController extends GetxController {
                 pickImageFromGallery();
               },
             ),
-            // Camera option - hide on web as it's not reliably supported
-            if (!kIsWeb)
-              ListTile(
-                leading: const Icon(Icons.camera_alt, color: Colors.green),
-                title: const Text('Take a Photo'),
-                onTap: () {
-                  Get.back();
-                  pickImageFromCamera();
-                },
-              ),
+            // Camera option
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.green),
+              title: const Text('Take a Photo'),
+              onTap: () {
+                Get.back();
+                pickImageFromCamera();
+              },
+            ),
             if (user.value?.profilePicture != null)
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),

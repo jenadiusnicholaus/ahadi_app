@@ -1,14 +1,19 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/storage_service.dart';
 import '../controllers/events_controller.dart';
 import '../models/event_model.dart';
+import '../models/invitation_card_template_model.dart';
 import '../models/participant_model.dart';
+import '../../payments/views/event_wallet_screen.dart';
+import '../../payments/views/event_transactions_screen.dart';
+import 'invitation_templates_screen.dart';
 
 /// Event detail content - renders inside DashboardShell
 class EventDetailContent extends StatefulWidget {
@@ -42,26 +47,26 @@ class _EventDetailContentState extends State<EventDetailContent> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
     return Obx(() {
       final event = controller.currentEvent.value ?? widget.event;
+      
+      // Debug logging
+      debugPrint('📱 [EventDetailContent] Building with event ID: ${event.id}');
+      debugPrint('📱 [EventDetailContent] currentEvent.value: ${controller.currentEvent.value?.id}');
+      debugPrint('📱 [EventDetailContent] Template: ${event.invitationCardTemplate?.name}');
+      debugPrint('📱 [EventDetailContent] Template ID: ${event.invitationCardTemplateId}');
 
       return SingleChildScrollView(
-        padding: EdgeInsets.all(isWideScreen ? 32 : 16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header with title and actions
-            _buildHeader(context, event, isWideScreen),
+            _buildHeader(context, event),
             const SizedBox(height: 24),
 
-            // Main content
-            if (isWideScreen)
-              _buildWideContent(context, event)
-            else
-              _buildMobileContent(context, event),
+            // Main content (mobile only)
+            _buildMobileContent(context, event),
           ],
         ),
       );
@@ -71,7 +76,6 @@ class _EventDetailContentState extends State<EventDetailContent> {
   Widget _buildHeader(
     BuildContext context,
     EventModel event,
-    bool isWideScreen,
   ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,58 +152,6 @@ class _EventDetailContentState extends State<EventDetailContent> {
             ],
           ),
         ),
-        if (isWideScreen) ...[
-          OutlinedButton.icon(
-            onPressed: () => _shareEvent(event),
-            icon: const Icon(Icons.share, size: 18),
-            label: const Text('Share'),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: () => _showContributeDialog(event),
-            icon: const Icon(Icons.volunteer_activism, size: 18),
-            label: const Text('Contribute'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildWideContent(BuildContext context, EventModel event) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left column - Main info
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildProgressCard(event),
-              const SizedBox(height: 24),
-              _buildAboutSection(event),
-              const SizedBox(height: 24),
-              _buildParticipantsSection(event),
-            ],
-          ),
-        ),
-        const SizedBox(width: 32),
-
-        // Right column - Details & actions
-        Expanded(
-          flex: 1,
-          child: Column(
-            children: [
-              _buildDetailsCard(event),
-              const SizedBox(height: 16),
-              _buildQuickActionsCard(event),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -225,6 +177,10 @@ class _EventDetailContentState extends State<EventDetailContent> {
         // Quick actions
         _buildMobileQuickActions(event),
         const SizedBox(height: 16),
+
+        // Invitation Template Section (for wedding events)
+        if (event.isWedding) _buildInvitationTemplateSection(event),
+        if (event.isWedding) const SizedBox(height: 16),
 
         _buildAboutSection(event),
         const SizedBox(height: 16),
@@ -355,6 +311,454 @@ class _EventDetailContentState extends State<EventDetailContent> {
         ),
       ),
     );
+  }
+
+  /// Build invitation template section for wedding events
+  Widget _buildInvitationTemplateSection(EventModel event) {
+    final template = event.invitationCardTemplate;
+    final customInvitationImage = event.customInvitationImage;
+    
+    // Debug logging
+    debugPrint('🎨 [InvitationSection] Event ID: ${event.id}');
+    debugPrint('🎨 [InvitationSection] Template: $template');
+    debugPrint('🎨 [InvitationSection] Template ID: ${event.invitationCardTemplateId}');
+    debugPrint('🎨 [InvitationSection] Custom Image: $customInvitationImage');
+    
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.pink.shade100),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.card_giftcard, color: Colors.pink.shade400, size: 20),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Invitation Card',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                // Upload custom option
+                TextButton.icon(
+                  onPressed: () => _uploadCustomInvitation(event),
+                  icon: Icon(Icons.upload, size: 16, color: Colors.pink.shade600),
+                  label: Text('Upload Custom', style: TextStyle(fontSize: 12, color: Colors.pink.shade600)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Show custom uploaded image if available
+            if (customInvitationImage != null && customInvitationImage.isNotEmpty) ...[
+              _buildCustomInvitationPreview(event, customInvitationImage),
+            ] else if (template != null) ...[
+              // Show selected template preview
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.pink.shade200, width: 2),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                      // Always use styled preview for better consistency
+                      child: _buildCanvasTemplatePreview(template),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  template.name,
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  template.categoryDisplay,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _changeTemplate(event),
+                            icon: const Icon(Icons.swap_horiz, size: 18),
+                            label: const Text('Change'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.pink.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              // No template selected
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.pink.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.pink.shade100),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.style_outlined, size: 40, color: Colors.pink.shade300),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No template selected',
+                      style: TextStyle(
+                        color: Colors.pink.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Choose a beautiful template for your wedding invitations',
+                      style: TextStyle(color: Colors.pink.shade400, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => _changeTemplate(event),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Select Template'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.pink.shade400,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build canvas template preview
+  Widget _buildCanvasTemplatePreview(InvitationCardTemplateModel template) {
+    final primaryColor = _parseTemplateColor(template.primaryColor);
+    final secondaryColor = _parseTemplateColor(template.secondaryColor);
+    final accentColor = _parseTemplateColor(template.accentColor);
+    final style = template.canvasStyle ?? 'elegant';
+    
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [accentColor, accentColor.withValues(alpha: 0.95)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          if (style == 'floral') ...[
+            Positioned(top: 12, left: 12, child: Text('🌸', style: TextStyle(fontSize: 20))),
+            Positioned(top: 12, right: 12, child: Text('🌺', style: TextStyle(fontSize: 20))),
+            Positioned(bottom: 12, left: 12, child: Text('🌺', style: TextStyle(fontSize: 20))),
+            Positioned(bottom: 12, right: 12, child: Text('🌸', style: TextStyle(fontSize: 20))),
+          ],
+          Positioned.fill(
+            child: Container(
+              margin: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                border: Border.all(color: primaryColor, width: 2),
+              ),
+            ),
+          ),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'WEDDING INVITATION',
+                  style: TextStyle(
+                    color: secondaryColor.withValues(alpha: 0.6),
+                    fontSize: 10,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Your Names Here',
+                  style: TextStyle(
+                    color: secondaryColor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w300,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(width: 50, height: 2, color: primaryColor),
+                const SizedBox(height: 10),
+                Text(
+                  template.name,
+                  style: TextStyle(
+                    color: secondaryColor.withValues(alpha: 0.5),
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade600,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                template.categoryDisplay,
+                style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build custom invitation preview
+  Widget _buildCustomInvitationPreview(EventModel event, String imageUrl) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.pink.shade200, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            child: Stack(
+              children: [
+                Image.network(
+                  imageUrl,
+                  height: 220,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 220,
+                    color: Colors.pink.shade50,
+                    child: const Center(
+                      child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade600,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'Custom',
+                      style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Custom Invitation',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Your uploaded design',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _removeCustomInvitation(event),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Remove'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Upload custom invitation image
+  Future<void> _uploadCustomInvitation(EventModel event) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1600,
+      imageQuality: 85,
+    );
+
+    if (image != null) {
+      try {
+        final bytes = await image.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        final ext = image.path.split('.').last.toLowerCase();
+        final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
+        final imageData = 'data:$mimeType;base64,$base64Image';
+
+        await controller.updateEvent(event.id, {'custom_invitation_image': imageData});
+        await controller.loadEventDetail(event.id);
+        if (mounted) setState(() {});
+        
+        Get.snackbar(
+          'Success',
+          'Custom invitation uploaded successfully',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          'Failed to upload image: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+  }
+
+  /// Remove custom invitation
+  Future<void> _removeCustomInvitation(EventModel event) async {
+    try {
+      await controller.updateEvent(event.id, {'custom_invitation_image': ''});
+      await controller.loadEventDetail(event.id);
+      if (mounted) setState(() {});
+      
+      Get.snackbar(
+        'Removed',
+        'Custom invitation removed',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to remove: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  /// Build template fallback when image fails
+  Widget _buildTemplateFallback(InvitationCardTemplateModel template, double height) {
+    return Container(
+      height: height,
+      color: _parseTemplateColor(template.primaryColor),
+      child: const Center(
+        child: Icon(Icons.card_giftcard, size: 40, color: Colors.white),
+      ),
+    );
+  }
+
+  /// Parse template hex color
+  Color _parseTemplateColor(String hexColor) {
+    try {
+      return Color(int.parse(hexColor.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return Colors.grey;
+    }
+  }
+
+  /// Navigate to template selection and update event
+  Future<void> _changeTemplate(EventModel event) async {
+    debugPrint('🎨 Opening template selection for event ${event.id}');
+    final result = await Get.to<InvitationCardTemplateModel>(
+      () => const InvitationTemplatesScreen(),
+      arguments: {
+        'selectionMode': true,
+        'selectedTemplateId': event.invitationCardTemplateId,
+        'eventId': event.id,
+        'eventTitle': event.title,
+      },
+    );
+
+    debugPrint('🎨 Template selection result: ${result?.name} (ID: ${result?.id})');
+    
+    if (result != null) {
+      // Update the event with new template
+      try {
+        debugPrint('🎨 Updating event ${event.id} with template ${result.id}');
+        final success = await controller.updateEventTemplate(event.id, result.id);
+        debugPrint('🎨 Update result: $success');
+        // Refresh event data to show updated template
+        await controller.loadEventDetail(event.id);
+        debugPrint('🎨 Event reloaded, template: ${controller.currentEvent.value?.invitationCardTemplate?.name}');
+        // Force UI rebuild
+        if (mounted) setState(() {});
+        Get.snackbar(
+          'Success',
+          'Invitation template updated to ${result.name}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } catch (e) {
+        debugPrint('🎨 Error updating template: $e');
+        Get.snackbar(
+          'Error',
+          'Failed to update template: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } else {
+      debugPrint('🎨 No template selected (result was null)');
+    }
   }
 
   Widget _buildDetailsCard(EventModel event) {
@@ -506,31 +910,73 @@ class _EventDetailContentState extends State<EventDetailContent> {
   }
 
   Widget _buildMobileQuickActions(EventModel event) {
-    return Row(
+    // Check if current user is the event owner
+    final currentUserId = Get.find<StorageService>().getUser()?['id'] ?? 0;
+    final isOwner = event.ownerId == currentUserId;
+
+    return Column(
       children: [
-        Expanded(
-          child: _buildMobileActionTile(
-            Icons.payments,
-            'Contributions',
-            widget.onContributionsTap,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMobileActionTile(
+                Icons.payments,
+                'Contributions',
+                widget.onContributionsTap,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMobileActionTile(
+                Icons.people,
+                'Participants',
+                widget.onParticipantsTap,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMobileActionTile(
+                Icons.share,
+                'Share',
+                () => _shareEvent(event),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildMobileActionTile(
-            Icons.people,
-            'Participants',
-            widget.onParticipantsTap,
+        // Only show Wallet, Transactions, Edit for event owner
+        if (isOwner) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMobileActionTile(
+                  Icons.account_balance_wallet,
+                  'Wallet',
+                  () => Get.to(() => EventWalletScreen(event: event)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildMobileActionTile(
+                  Icons.receipt_long,
+                  'Transactions',
+                  () => Get.to(() => EventTransactionsScreen(event: event)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (widget.onEditTap != null)
+                Expanded(
+                  child: _buildMobileActionTile(
+                    Icons.edit,
+                    'Edit Event',
+                    widget.onEditTap!,
+                  ),
+                )
+              else
+                Expanded(child: Container()),
+            ],
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildMobileActionTile(
-            Icons.share,
-            'Share',
-            () => _shareEvent(event),
-          ),
-        ),
+        ],
       ],
     );
   }
@@ -656,26 +1102,17 @@ class _EventDetailContentState extends State<EventDetailContent> {
   }
 
   void _shareEvent(EventModel event) {
-    final shareLink = '${AppConfig.webAppBaseUrl}/join/${event.joinCode}';
     final shareText =
         '''
 🎉 You're invited to "${event.title}"!
 
-Join using this link:
-$shareLink
-
-Or use code: ${event.joinCode}
+Join using code: ${event.joinCode}
 
 Powered by Ahadi - Event Contributions Made Easy
 ''';
 
-    if (kIsWeb) {
-      // On web, copy to clipboard and show dialog
-      _showShareDialog(event, shareLink, shareText);
-    } else {
-      // On mobile, use native share
-      Share.share(shareText, subject: 'Join ${event.title}');
-    }
+    // On mobile, use native share
+    Share.share(shareText, subject: 'Join ${event.title}');
   }
 
   void _showShareDialog(EventModel event, String shareLink, String shareText) {

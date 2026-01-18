@@ -140,6 +140,8 @@ class EventService extends GetxService {
   Future<EventModel> getEvent(int eventId) async {
     try {
       final response = await _api.dio.get('${ApiEndpoints.events}$eventId/');
+      debugPrint('📡 [EventService] Get event $eventId response: ${response.data}');
+      debugPrint('📡 [EventService] invitation_card_template: ${response.data['invitation_card_template']}');
       return EventModel.fromJson(response.data);
     } on dio_pkg.DioException catch (e) {
       throw _handleError(e);

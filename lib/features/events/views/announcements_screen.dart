@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/dashboard_layout.dart';
 import '../controllers/events_controller.dart';
+import '../services/event_service.dart';
+import '../models/message_model.dart';
 
 class AnnouncementsScreen extends StatefulWidget {
   const AnnouncementsScreen({super.key});
@@ -13,7 +16,12 @@ class AnnouncementsScreen extends StatefulWidget {
 
 class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   final EventsController controller = Get.find<EventsController>();
+  final EventService _eventService = Get.find<EventService>();
+  
   int? eventId;
+  List<AnnouncementModel> _announcements = [];
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -26,7 +34,29 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Future<void> _loadAnnouncements() async {
-    // TODO: Implement load announcements from API
+    if (eventId == null) return;
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      _announcements = await _eventService.getEventAnnouncements(eventId!);
+      // Sort: pinned first, then by date
+      _announcements.sort((a, b) {
+        if (a.isPinned != b.isPinned) {
+          return a.isPinned ? -1 : 1;
+        }
+        return b.createdAt.compareTo(a.createdAt);
+      });
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
+    }
   }
 
   @override
@@ -106,26 +136,56 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Widget _buildAnnouncementsList() {
-    // Mock data for demonstration
-    final announcements = _getMockAnnouncements();
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    if (announcements.isEmpty) {
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'Failed to load announcements',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadAnnouncements,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_announcements.isEmpty) {
       return _buildEmptyState();
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(24),
-      itemCount: announcements.length,
-      itemBuilder: (context, index) {
-        final announcement = announcements[index];
-        return _buildAnnouncementCard(announcement);
-      },
+    return RefreshIndicator(
+      onRefresh: _loadAnnouncements,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(24),
+        itemCount: _announcements.length,
+        itemBuilder: (context, index) {
+          final announcement = _announcements[index];
+          return _buildAnnouncementCard(announcement);
+        },
+      ),
     );
   }
 
-  Widget _buildAnnouncementCard(Map<String, dynamic> announcement) {
-    final isPinned = announcement['pinned'] as bool;
-    final priority = announcement['priority'] as String;
+  Widget _buildAnnouncementCard(AnnouncementModel announcement) {
+    final isPinned = announcement.isPinned;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -159,20 +219,12 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          _buildPriorityBadge(priority),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              announcement['title'] as String,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        announcement.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -184,7 +236,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            announcement['author'] as String,
+                            announcement.authorName ?? 'Unknown',
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 13,
@@ -198,7 +250,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            announcement['time'] as String,
+                            _formatDate(announcement.createdAt),
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 13,
@@ -214,8 +266,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   onSelected: (value) {
                     if (value == 'pin') {
                       _togglePin(announcement);
-                    } else if (value == 'edit') {
-                      _editAnnouncement(announcement);
                     } else if (value == 'delete') {
                       _deleteAnnouncement(announcement);
                     }
@@ -231,16 +281,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(isPinned ? 'Unpin' : 'Pin'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 18),
-                          SizedBox(width: 8),
-                          Text('Edit'),
                         ],
                       ),
                     ),
@@ -264,7 +304,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              announcement['content'] as String,
+              announcement.content,
               style: TextStyle(
                 fontSize: 15,
                 color: Colors.grey.shade800,
@@ -273,97 +313,25 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             ),
           ),
 
-          // Footer
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.visibility_outlined,
-                  size: 16,
-                  color: Colors.grey.shade500,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${announcement['views']} views',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
-                  ),
-                ),
-                const Spacer(),
-                if (announcement['notificationSent'] as bool)
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.notifications_active,
-                        size: 16,
-                        color: Colors.green.shade600,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Notified',
-                        style: TextStyle(
-                          color: Colors.green.shade600,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  Widget _buildPriorityBadge(String priority) {
-    Color color;
-    IconData icon;
-
-    switch (priority.toLowerCase()) {
-      case 'high':
-        color = Colors.red;
-        icon = Icons.error;
-        break;
-      case 'medium':
-        color = Colors.orange;
-        icon = Icons.warning;
-        break;
-      case 'low':
-        color = Colors.blue;
-        icon = Icons.info;
-        break;
-      default:
-        color = Colors.grey;
-        icon = Icons.announcement;
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} min ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} hours ago';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} days ago';
+    } else {
+      return DateFormat('MMM d, yyyy').format(date);
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            priority.toUpperCase(),
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildEmptyState() {
@@ -399,88 +367,171 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   void _showCreateAnnouncementDialog() {
+    final titleController = TextEditingController();
+    final contentController = TextEditingController();
+    bool isPinned = false;
+    bool isLoading = false;
+
+    Get.dialog(
+      StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('New Announcement'),
+            content: SizedBox(
+              width: 500,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Title',
+                      hintText: 'Enter announcement title',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: contentController,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Content',
+                      hintText: 'Enter announcement content',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    title: const Text('Pin this announcement'),
+                    subtitle: const Text('Pinned announcements appear at the top'),
+                    value: isPinned,
+                    onChanged: (value) {
+                      setDialogState(() => isPinned = value ?? false);
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Get.back(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        if (titleController.text.isEmpty ||
+                            contentController.text.isEmpty) {
+                          Get.snackbar(
+                            'Error',
+                            'Please fill in all fields',
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => isLoading = true);
+
+                        try {
+                          final announcement = AnnouncementModel(
+                            id: 0,
+                            eventId: eventId!,
+                            title: titleController.text,
+                            content: contentController.text,
+                            isPinned: isPinned,
+                            createdAt: DateTime.now(),
+                            updatedAt: DateTime.now(),
+                          );
+                          await _eventService.createAnnouncement(announcement);
+                          Get.back();
+                          Get.snackbar(
+                            'Success',
+                            'Announcement created successfully',
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: Colors.green,
+                            colorText: Colors.white,
+                          );
+                          _loadAnnouncements();
+                        } catch (e) {
+                          setDialogState(() => isLoading = false);
+                          Get.snackbar(
+                            'Error',
+                            e.toString(),
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+                child: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text('Create'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _togglePin(AnnouncementModel announcement) {
+    // TODO: Implement toggle pin API when available
     Get.snackbar(
       'Coming Soon',
-      'Create announcement functionality will be implemented',
+      'Pin toggle will be available soon',
       snackPosition: SnackPosition.BOTTOM,
     );
   }
 
-  void _togglePin(Map<String, dynamic> announcement) {
-    final isPinned = announcement['pinned'] as bool;
-    Get.snackbar(
-      'Success',
-      isPinned ? 'Announcement unpinned' : 'Announcement pinned',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.green,
-      colorText: Colors.white,
-    );
-  }
-
-  void _editAnnouncement(Map<String, dynamic> announcement) {
-    Get.snackbar(
-      'Coming Soon',
-      'Edit announcement functionality will be implemented',
-      snackPosition: SnackPosition.BOTTOM,
-    );
-  }
-
-  void _deleteAnnouncement(Map<String, dynamic> announcement) {
+  void _deleteAnnouncement(AnnouncementModel announcement) {
     Get.defaultDialog(
       title: 'Delete Announcement',
-      middleText: 'Are you sure you want to delete this announcement?',
+      middleText: 'Are you sure you want to delete "${announcement.title}"?',
       textConfirm: 'Delete',
       textCancel: 'Cancel',
       confirmTextColor: Colors.white,
       buttonColor: Colors.red,
-      onConfirm: () {
+      onConfirm: () async {
         Get.back();
-        Get.snackbar(
-          'Success',
-          'Announcement deleted successfully',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
+        try {
+          await _eventService.deleteAnnouncement(announcement.id);
+          Get.snackbar(
+            'Success',
+            'Announcement deleted successfully',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+          );
+          _loadAnnouncements();
+        } catch (e) {
+          Get.snackbar(
+            'Error',
+            e.toString(),
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
       },
     );
-  }
-
-  List<Map<String, dynamic>> _getMockAnnouncements() {
-    return [
-      {
-        'title': 'Venue Change Notification',
-        'content':
-            'Dear participants, please note that the venue has been changed to Grand Ballroom, Hotel Kilimanjaro. The date and time remain the same. Thank you for your understanding.',
-        'author': 'Event Organizer',
-        'time': '2 hours ago',
-        'priority': 'high',
-        'pinned': true,
-        'views': 45,
-        'notificationSent': true,
-      },
-      {
-        'title': 'Contribution Milestone Reached!',
-        'content':
-            'We are thrilled to announce that we have reached 75% of our contribution target! Thank you all for your generous support. Let\'s reach our goal together!',
-        'author': 'John Doe',
-        'time': '1 day ago',
-        'priority': 'medium',
-        'pinned': false,
-        'views': 67,
-        'notificationSent': true,
-      },
-      {
-        'title': 'Event Program Schedule',
-        'content':
-            'The event program schedule is now available. Please check your email for the detailed schedule of activities. Looking forward to seeing everyone there!',
-        'author': 'Event Organizer',
-        'time': '3 days ago',
-        'priority': 'low',
-        'pinned': false,
-        'views': 89,
-        'notificationSent': true,
-      },
-    ];
   }
 }

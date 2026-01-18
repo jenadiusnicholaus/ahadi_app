@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../../core/config/app_config.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/controllers/auth_controller.dart';
@@ -43,10 +42,13 @@ class PublicEventsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Use Get.find() if already exists, otherwise create with Get.put()
-    final controller = Get.isRegistered<PublicEventsController>()
-        ? Get.find<PublicEventsController>()
-        : Get.put(PublicEventsController());
+    // Use permanent controller to prevent disposal when navigating away
+    final controller = Get.put(PublicEventsController(), permanent: true);
+    
+    // Ensure the controller is properly loaded when returning to this screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.ensureLoaded();
+    });
     
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= mobileBreakpoint;
@@ -805,9 +807,22 @@ class PublicEventsScreen extends StatelessWidget {
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (event.description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          event.description,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            height: 1.3,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       if (event.location.isNotEmpty)
                         Row(
@@ -841,7 +856,7 @@ class PublicEventsScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '${event.participantCount} going',
+                            '${event.participantCount} participating',
                             style: TextStyle(
                               fontSize: 13,
                               color: AppColors.textSecondary,
@@ -1032,15 +1047,23 @@ class PublicEventsScreen extends StatelessWidget {
       init: Get.find<AuthController>(),
       builder: (authController) {
         return Scaffold(
-          backgroundColor: Colors.grey.shade50,
-          body: CustomScrollView(
-            slivers: [
-              _buildMobileSliverAppBar(context, controller),
-              SliverToBoxAdapter(
-                child: _buildMobileEventTypeChips(controller),
-              ),
-              _buildMobileSliverEventsList(context, controller),
-            ],
+          backgroundColor: const Color(0xFFFAFAFA),
+          body: RefreshIndicator(
+            onRefresh: () async {
+              // Use controller's safe refresh method
+              await controller.refreshEvents();
+            },
+            color: AppColors.textPrimary,
+            backgroundColor: Colors.white,
+            child: CustomScrollView(
+              slivers: [
+                _buildMobileSliverAppBar(context, controller),
+                SliverToBoxAdapter(
+                  child: _buildMobileEventTypeChips(controller),
+                ),
+                _buildMobileSliverEventsList(context, controller),
+              ],
+            ),
           ),
           bottomNavigationBar: authController.isAuthenticated
               ? _buildMobileBottomNav(context)
@@ -1069,25 +1092,25 @@ class PublicEventsScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(
-                icon: Icons.explore,
+                icon: Icons.explore_rounded,
                 label: 'Discover',
                 onTap: () {}, // Already on this page
                 isActive: true,
               ),
               _buildNavItem(
-                icon: Icons.event,
+                icon: Icons.event_rounded,
                 label: 'My Events',
                 onTap: () => Get.toNamed(AppRoutes.events),
                 isActive: false,
               ),
               _buildNavItem(
-                icon: Icons.dashboard_outlined,
+                icon: Icons.dashboard_rounded,
                 label: 'Dashboard',
                 onTap: () => Get.toNamed(AppRoutes.dashboard),
                 isActive: false,
               ),
               _buildNavItem(
-                icon: Icons.person_outline,
+                icon: Icons.person_rounded,
                 label: 'Profile',
                 onTap: () => Get.toNamed(AppRoutes.profile),
                 isActive: false,
@@ -1115,7 +1138,7 @@ class PublicEventsScreen extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isActive ? AppColors.primary : Colors.grey.shade600,
+              color: isActive ? AppColors.textPrimary : AppColors.textHint,
               size: 24,
             ),
             const SizedBox(height: 4),
@@ -1124,7 +1147,7 @@ class PublicEventsScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                color: isActive ? AppColors.primary : Colors.grey.shade600,
+                color: isActive ? AppColors.textPrimary : AppColors.textHint,
               ),
             ),
           ],
@@ -1138,132 +1161,54 @@ class PublicEventsScreen extends StatelessWidget {
     PublicEventsController controller,
   ) {
     return SliverAppBar(
-      expandedHeight: 140,
+      expandedHeight: 120,
       floating: true,
       pinned: true,
-      backgroundColor: AppColors.primary,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
       automaticallyImplyLeading: false,
       centerTitle: false,
-      title: null, // Hide title to prevent overlap
+      title: null,
       actions: [
         IconButton(
-          icon: const Icon(Icons.search, color: Colors.white),
+          icon: Icon(Icons.search_rounded, color: AppColors.textPrimary),
           onPressed: () => controller.isSearching.value = true,
         ),
-        IconButton(
-          icon: const Icon(Icons.add_circle_outline, color: Colors.white, size: 26),
-          onPressed: () => _showJoinByCodeDialog(context, controller),
+        Container(
+          margin: const EdgeInsets.only(right: 4),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            icon: Icon(Icons.qr_code_scanner_rounded, color: AppColors.primary, size: 22),
+            onPressed: () => _showJoinByCodeDialog(context, controller),
+          ),
         ),
         _buildMobileAuthButton(),
-        const SizedBox(width: 4),
+        const SizedBox(width: 8),
       ],
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: false,
-        titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
+        titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
         title: LayoutBuilder(
           builder: (context, constraints) {
-            // Show "Events" when collapsed, "Ahadi" when expanded
             final isCollapsed = constraints.maxHeight <= kToolbarHeight + 20;
             return Text(
-              isCollapsed ? 'Events' : 'Ahadi',
+              isCollapsed ? 'Discover' : 'Discover Events',
               style: TextStyle(
-                fontSize: isCollapsed ? 20 : 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+                fontSize: isCollapsed ? 18 : 24,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
                 letterSpacing: -0.5,
               ),
             );
           },
         ),
         background: Container(
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-          ),
+          color: Colors.white,
         ),
-      ),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMobileHeader(
-    BuildContext context,
-    PublicEventsController controller,
-  ) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 24),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.celebration,
-                      size: 20,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Ahadi',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.search, color: Colors.white),
-                    onPressed: () => controller.isSearching.value = true,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline, color: Colors.white, size: 26),
-                    onPressed: () => _showJoinByCodeDialog(context, controller),
-                  ),
-                  _buildMobileAuthButton(),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Events',
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1280,18 +1225,32 @@ class PublicEventsScreen extends StatelessWidget {
           return PopupMenuButton<String>(
             offset: const Offset(0, 48),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white,
-              child: Text(
-                initial,
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor: AppColors.primary,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColors.textSecondary),
+                ],
               ),
             ),
             onSelected: (value) {
@@ -1316,8 +1275,8 @@ class PublicEventsScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.event,
-                      color: Colors.grey.shade700,
+                      Icons.event_rounded,
+                      color: AppColors.textSecondary,
                       size: 20,
                     ),
                     const SizedBox(width: 12),
@@ -1330,8 +1289,8 @@ class PublicEventsScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.dashboard_outlined,
-                      color: Colors.grey.shade700,
+                      Icons.dashboard_rounded,
+                      color: AppColors.textSecondary,
                       size: 20,
                     ),
                     const SizedBox(width: 12),
@@ -1344,8 +1303,8 @@ class PublicEventsScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.person_outline,
-                      color: Colors.grey.shade700,
+                      Icons.person_rounded,
+                      color: AppColors.textSecondary,
                       size: 20,
                     ),
                     const SizedBox(width: 12),
@@ -1358,11 +1317,11 @@ class PublicEventsScreen extends StatelessWidget {
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout, color: Colors.red.shade600, size: 20),
+                    Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
                     const SizedBox(width: 12),
                     Text(
                       'Sign Out',
-                      style: TextStyle(color: Colors.red.shade600),
+                      style: TextStyle(color: AppColors.error),
                     ),
                   ],
                 ),
@@ -1370,11 +1329,20 @@ class PublicEventsScreen extends StatelessWidget {
             ],
           );
         }
-        return TextButton(
-          onPressed: () => Get.toNamed(AppRoutes.login),
-          child: const Text(
-            'Sign In',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.textPrimary,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: TextButton(
+            onPressed: () => Get.toNamed(AppRoutes.login),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            child: const Text(
+              'Sign In',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+            ),
           ),
         );
       },
@@ -1383,40 +1351,74 @@ class PublicEventsScreen extends StatelessWidget {
 
   Widget _buildMobileEventTypeChips(PublicEventsController controller) {
     return Container(
-      height: 50,
-      margin: const EdgeInsets.only(top: 16),
+      height: 48,
+      margin: const EdgeInsets.only(top: 8),
       child: Obx(() {
         final types = controller.eventTypes;
         return ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           itemCount: types.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
               return Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 10),
                 child: Obx(
-                  () => FilterChip(
-                    label: const Text('All'),
-                    selected: controller.selectedEventTypeId.value == null,
-                    onSelected: (_) => controller.filterByEventType(null),
-                    backgroundColor: Colors.white,
-                    selectedColor: AppColors.primary.withValues(alpha: 0.2),
-                  ),
+                  () {
+                    final isSelected = controller.selectedEventTypeId.value == null;
+                    return GestureDetector(
+                      onTap: () => controller.filterByEventType(null),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.textPrimary : Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isSelected ? AppColors.textPrimary : const Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        child: Text(
+                          'All',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? Colors.white : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               );
             }
             final type = types[index - 1];
             return Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 10),
               child: Obx(
-                () => FilterChip(
-                  label: Text(type.name),
-                  selected: controller.selectedEventTypeId.value == type.id,
-                  onSelected: (_) => controller.filterByEventType(type.id),
-                  backgroundColor: Colors.white,
-                  selectedColor: AppColors.primary.withValues(alpha: 0.2),
-                ),
+                () {
+                  final isSelected = controller.selectedEventTypeId.value == type.id;
+                  return GestureDetector(
+                    onTap: () => controller.filterByEventType(type.id),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.textPrimary : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: isSelected ? AppColors.textPrimary : const Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      child: Text(
+                        type.name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             );
           },
@@ -1448,149 +1450,305 @@ class PublicEventsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMobileEventsList(
-    BuildContext context,
-    PublicEventsController controller,
-  ) {
-    return RefreshIndicator(
-      onRefresh: () => Future.sync(() => controller.pagingController.refresh()),
-      child: PagedListView<int, EventModel>(
-        pagingController: controller.pagingController,
-        padding: const EdgeInsets.all(16),
-        builderDelegate: PagedChildBuilderDelegate<EventModel>(
-          itemBuilder: (context, event, index) =>
-              _buildMobileEventCard(context, controller, event),
-          firstPageProgressIndicatorBuilder: (_) => _buildLoadingState(),
-          newPageProgressIndicatorBuilder: (_) => _buildLoadingState(),
-          firstPageErrorIndicatorBuilder: (context) => _buildErrorState(
-            controller.pagingController.error.toString(),
-            () => controller.pagingController.refresh(),
-          ),
-          noItemsFoundIndicatorBuilder: (_) => _buildEmptyState(controller),
-        ),
-      ),
-    );
-  }
-
   Widget _buildMobileEventCard(
     BuildContext context,
     PublicEventsController controller,
     EventModel event,
   ) {
-    return Card(
+    final target = event.contributionTarget ?? 0;
+    final progress = target > 0
+        ? (event.totalContributions / target).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey[200]!),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: () => _showEventDetails(context, controller, event),
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16),
+        child: InkWell(
+          onTap: () => _showEventDetails(context, controller, event),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left: Image with date overlay
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: 90,
+                        height: 90,
+                        child: event.displayCoverImage.isNotEmpty
+                            ? Image.network(
+                                event.displayCoverImage,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _buildCompactPlaceholder(event),
+                              )
+                            : _buildCompactPlaceholder(event),
+                      ),
                     ),
-                    child: event.displayCoverImage.isNotEmpty
-                        ? Image.network(
-                            event.displayCoverImage,
-                            fit: BoxFit.cover,
-                          )
-                        : _buildImagePlaceholder(),
-                  ),
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        DateFormat(
-                          'MMM dd',
-                        ).format(event.startDate ?? DateTime.now()),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                    // Date badge overlay
+                    Positioned(
+                      bottom: 4,
+                      left: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  if (event.location.isNotEmpty)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 16,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            event.location,
-                            style: TextStyle(color: AppColors.textSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        child: Text(
+                          DateFormat('dd MMM').format(event.startDate ?? DateTime.now()),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  const SizedBox(height: 12),
-                  Row(
+                  ],
+                ),
+                const SizedBox(width: 12),
+                // Right: Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.people_outline,
-                        size: 16,
-                        color: AppColors.textSecondary,
+                      // Event type badge + Title row
+                      Row(
+                        children: [
+                          if (event.eventType != null) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                event.eventType!.name,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: Text(
+                              event.title,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1A1A2E),
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${event.participantCount} going',
-                        style: TextStyle(color: AppColors.textSecondary),
+                      // Description (1 line only)
+                      if (event.description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          event.description,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            height: 1.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      // Location row
+                      if (event.location.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 14,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                event.location,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      // Progress bar + Bottom row
+                      Row(
+                        children: [
+                          // Progress section
+                          if (target > 0) ...[
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Raised',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${(progress * 100).toInt()}%',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: progress >= 1.0
+                                              ? AppColors.success
+                                              : AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(2),
+                                    child: LinearProgressIndicator(
+                                      value: progress,
+                                      minHeight: 3,
+                                      backgroundColor: const Color(0xFFE5E7EB),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        progress >= 1.0
+                                            ? AppColors.success
+                                            : AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                          ] else ...[
+                            // Participants count if no target
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.people_outline_rounded,
+                                  size: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${event.participantCount}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                          ],
+                          // View button
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.textPrimary,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'View',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const Spacer(),
-                      if ((event.contributionTarget ?? 0) > 0)
-                        _buildProgressBadge(event),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildCompactPlaceholder(EventModel event) {
+    return Container(
+      color: AppColors.primary.withValues(alpha: 0.1),
+      child: Center(
+        child: Icon(
+          _getEventIcon(event.eventType?.slug),
+          size: 32,
+          color: AppColors.primary.withValues(alpha: 0.5),
+        ),
+      ),
+    );
+  }
+
+  IconData _getEventIcon(String? slug) {
+    switch (slug) {
+      case 'wedding':
+        return Icons.favorite_rounded;
+      case 'fundraiser':
+        return Icons.volunteer_activism_rounded;
+      case 'church':
+        return Icons.church_rounded;
+      case 'graduation':
+        return Icons.school_rounded;
+      case 'birthday':
+        return Icons.cake_rounded;
+      default:
+        return Icons.event_rounded;
+    }
   }
 
   // ==================== COMMON WIDGETS ====================
@@ -1732,9 +1890,43 @@ class PublicEventsScreen extends StatelessWidget {
 
   Widget _buildImagePlaceholder() {
     return Container(
-      color: Colors.grey[200],
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.grey[200]!,
+            Colors.grey[100]!,
+          ],
+        ),
+      ),
       child: Center(
-        child: Icon(Icons.event, size: 48, color: Colors.grey[400]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.8),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.celebration_rounded,
+                size: 40,
+                color: AppColors.primary.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Event',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2225,127 +2417,17 @@ class PublicEventsScreen extends StatelessWidget {
   }
 
   void _shareEvent(BuildContext context, EventModel event) {
-    final shareLink = '${AppConfig.webAppBaseUrl}/join/${event.joinCode}';
     final shareText =
         '''
 🎉 You're invited to "${event.title}"!
 
-Join using this link:
-$shareLink
-
-Or use code: ${event.joinCode}
+Join using code: ${event.joinCode}
 
 Powered by Ahadi - Event Contributions Made Easy
 ''';
 
-    if (kIsWeb) {
-      // On web, show share dialog with copy options
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.share, color: AppColors.primary),
-              const SizedBox(width: 8),
-              const Text('Share Event'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Share this link with others:'),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.borderLight,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: SelectableText(
-                        shareLink,
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.copy, size: 20),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: shareLink));
-                        Get.snackbar(
-                          'Copied!',
-                          'Link copied to clipboard',
-                          snackPosition: SnackPosition.BOTTOM,
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(Icons.qr_code_2, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Join Code: ${event.joinCode}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: event.joinCode));
-                      Get.snackbar(
-                        'Copied!',
-                        'Join code copied',
-                        snackPosition: SnackPosition.BOTTOM,
-                      );
-                    },
-                    icon: const Icon(Icons.copy, size: 16),
-                    label: const Text('Copy'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: shareText));
-                Navigator.pop(context);
-                Get.snackbar(
-                  'Copied!',
-                  'Full invite message copied',
-                  snackPosition: SnackPosition.BOTTOM,
-                );
-              },
-              icon: const Icon(Icons.content_copy),
-              label: const Text('Copy Message'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      // On mobile, use native share
-      Share.share(shareText, subject: 'Join ${event.title}');
-    }
+    // On mobile, use native share
+    Share.share(shareText, subject: 'Join ${event.title}');
   }
 
   void _showEventDetails(
@@ -2440,7 +2522,7 @@ Powered by Ahadi - Event Contributions Made Easy
                       _buildDetailRow(
                         Icons.people,
                         'Participants',
-                        '${event.participantCount} going',
+                        '${event.participantCount} participating',
                       ),
                       if ((event.contributionTarget ?? 0) > 0) ...[
                         const SizedBox(height: 24),
@@ -2608,14 +2690,14 @@ Powered by Ahadi - Event Contributions Made Easy
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: progress,
               backgroundColor: Colors.grey[300],
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              minHeight: 8,
+              minHeight: 4,
             ),
           ),
           const SizedBox(height: 8),

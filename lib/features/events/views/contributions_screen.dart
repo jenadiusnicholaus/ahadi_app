@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -35,24 +34,19 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
     return DashboardLayout(
       currentRoute: AppRoutes.events,
       showBackButton: true,
       onBack: () => Get.back(),
       breadcrumb: _buildBreadcrumb(),
-      sidebarContent: _buildSidebarContent(isWideScreen),
-      floatingActionButton: isWideScreen
-          ? null
-          : FloatingActionButton.extended(
+      sidebarContent: null,
+      floatingActionButton: FloatingActionButton.extended(
               onPressed: () => _showAddContributionDialog(context),
               icon: const Icon(Icons.add),
               label: const Text('Add'),
               backgroundColor: AppColors.primary,
             ),
-      content: _buildContent(context, isWideScreen),
+      content: _buildContent(context),
     );
   }
 
@@ -94,147 +88,6 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
             fontWeight: FontWeight.w500,
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildSidebarContent(bool isWideScreen) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Stats summary
-        Obx(() => Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Total Collected',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    controller.formatAmount(controller.totalAmount.value),
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _buildStatBadge(
-                        '${controller.confirmedCount.value}',
-                        'Confirmed',
-                        Colors.green,
-                      ),
-                      const SizedBox(width: 8),
-                      _buildStatBadge(
-                        '${controller.pendingCount.value}',
-                        'Pending',
-                        Colors.orange,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            )),
-
-        // Filter section
-        const Text(
-          'FILTER BY',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Status filter
-        const Text(
-          'Status',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 8),
-        Obx(() => Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildFilterChip('All', '', controller.statusFilter.value,
-                    (v) => controller.setStatusFilter(v)),
-                _buildFilterChip('Confirmed', 'CONFIRMED',
-                    controller.statusFilter.value, (v) => controller.setStatusFilter(v)),
-                _buildFilterChip('Pending', 'PENDING',
-                    controller.statusFilter.value, (v) => controller.setStatusFilter(v)),
-              ],
-            )),
-
-        const SizedBox(height: 16),
-
-        // Kind filter
-        const Text(
-          'Type',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 8),
-        Obx(() => Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildFilterChip('All', '', controller.kindFilter.value,
-                    (v) => controller.setKindFilter(v)),
-                _buildFilterChip('Cash', 'CASH', controller.kindFilter.value,
-                    (v) => controller.setKindFilter(v)),
-                _buildFilterChip('Mobile', 'MOBILE_MONEY',
-                    controller.kindFilter.value, (v) => controller.setKindFilter(v)),
-                _buildFilterChip('Item', 'ITEM', controller.kindFilter.value,
-                    (v) => controller.setKindFilter(v)),
-              ],
-            )),
-
-        const SizedBox(height: 24),
-
-        // Actions
-        if (isWideScreen) ...[
-          const Divider(),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _showAddContributionDialog(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Contribution'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _showMobilePaymentDialog(context),
-              icon: const Icon(Icons.phone_android),
-              label: const Text('Mobile Payment'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -298,7 +151,7 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
     );
   }
 
-  Widget _buildContent(BuildContext context, bool isWideScreen) {
+  Widget _buildContent(BuildContext context) {
     return Obx(() {
       if (controller.isLoading.value && controller.contributions.isEmpty) {
         return const Center(child: CircularProgressIndicator());
@@ -355,10 +208,8 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Contributions list/grid
-              isWideScreen
-                  ? _buildContributionsTable(context)
-                  : _buildContributionsList(context),
+              // Contributions list
+              _buildContributionsList(context),
             ],
           ),
         ),
@@ -420,102 +271,6 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContributionsTable(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
-          columns: const [
-            DataColumn(label: Text('Contributor')),
-            DataColumn(label: Text('Amount')),
-            DataColumn(label: Text('Type')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Date')),
-            DataColumn(label: Text('Actions')),
-          ],
-          rows: controller.contributions.map((contribution) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        contribution.participantName ?? 'Anonymous',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      if (contribution.participantPhone != null)
-                        Text(
-                          contribution.participantPhone!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    controller.formatAmount(contribution.amount),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                DataCell(_buildKindBadge(contribution.kind)),
-                DataCell(_buildStatusBadge(contribution.status)),
-                DataCell(
-                  Text(
-                    DateFormat('MMM d, y').format(contribution.createdAt),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert),
-                    onSelected: (value) => _handleAction(value, contribution),
-                    itemBuilder: (context) => [
-                      if (contribution.isPending)
-                        const PopupMenuItem(
-                          value: 'confirm',
-                          child: Row(
-                            children: [
-                              Icon(Icons.check, size: 18),
-                              SizedBox(width: 8),
-                              Text('Confirm'),
-                            ],
-                          ),
-                        ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 18, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
         ),
       ),
     );

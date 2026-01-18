@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../controllers/events_controller.dart';
 import '../models/event_type_model.dart';
+import '../models/invitation_card_template_model.dart';
+import 'invitation_templates_screen.dart';
 
 class CreateEventScreen extends StatefulWidget {
   const CreateEventScreen({super.key});
@@ -27,6 +29,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _venueController = TextEditingController();
   final _targetController = TextEditingController();
 
+  // Wedding-specific controllers
+  final _groomNameController = TextEditingController();
+  final _brideNameController = TextEditingController();
+  final _receptionVenueController = TextEditingController();
+  final _dressCodeController = TextEditingController();
+  final _rsvpPhoneController = TextEditingController();
+
   EventTypeModel? _selectedEventType;
   DateTime? _startDate;
   TimeOfDay? _startTime;
@@ -36,6 +45,20 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   bool _autoDisburse = true;
   bool _chatEnabled = true;
 
+  // Wedding-specific fields
+  InvitationCardTemplateModel? _selectedTemplate;
+  TimeOfDay? _ceremonyTime;
+  TimeOfDay? _receptionTime;
+
+  /// Check if the selected event type is a wedding
+  bool get _isWedding {
+    final slug = _selectedEventType?.slug.toLowerCase();
+    debugPrint(
+      '🔍 Selected event type: ${_selectedEventType?.name}, slug: $slug',
+    );
+    return slug == 'wedding';
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -44,6 +67,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _locationController.dispose();
     _venueController.dispose();
     _targetController.dispose();
+    _groomNameController.dispose();
+    _brideNameController.dispose();
+    _receptionVenueController.dispose();
+    _dressCodeController.dispose();
+    _rsvpPhoneController.dispose();
     super.dispose();
   }
 
@@ -168,6 +196,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   label: Text(type.name),
                   selected: isSelected,
                   onSelected: (_) {
+                    debugPrint(
+                      '📌 Selected event type: ${type.name}, slug: ${type.slug}',
+                    );
                     setState(() => _selectedEventType = type);
                   },
                   selectedColor: AppColors.primary.withOpacity(0.2),
@@ -203,9 +234,347 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             ),
             maxLines: 4,
           ),
+
+          // Wedding-specific fields
+          if (_isWedding) ...[
+            const SizedBox(height: 32),
+            _buildWeddingDetailsSection(),
+          ],
         ],
       ),
     );
+  }
+
+  /// Build the wedding details section
+  Widget _buildWeddingDetailsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Header
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.pink[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.pink[200]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.favorite, color: Colors.pink[400]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Wedding Details',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.pink[700],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Add wedding-specific information for personalized invitations',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: Colors.pink[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Invitation Card Template Selection
+        Text(
+          'Invitation Card Template',
+          style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Choose a beautiful template for your wedding invitations',
+          style: AppTextStyles.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Template Selection Button/Preview
+        _buildTemplateSelector(),
+        const SizedBox(height: 24),
+
+        // Bride & Groom Names
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _groomNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Groom\'s Name',
+                  hintText: 'e.g., John',
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                controller: _brideNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Bride\'s Name',
+                  hintText: 'e.g., Jane',
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  /// Build the template selector widget
+  Widget _buildTemplateSelector() {
+    if (_selectedTemplate != null) {
+      final isCanvas = _selectedTemplate!.isCanvasTemplate;
+      
+      // Show selected template preview
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Template Preview - use styled preview for canvas, image for others
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
+              child: isCanvas 
+                  ? _buildCanvasPreview()
+                  : (_selectedTemplate!.previewImage != null
+                      ? Image.network(
+                          _selectedTemplate!.previewImage!,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildFallbackPreview(120),
+                        )
+                      : _buildFallbackPreview(120)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedTemplate!.name,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          _selectedTemplate!.categoryDisplay,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _selectTemplate,
+                    icon: const Icon(Icons.swap_horiz),
+                    label: const Text('Change'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show selection button
+    return OutlinedButton.icon(
+      onPressed: _selectTemplate,
+      icon: const Icon(Icons.card_giftcard),
+      label: const Text('Choose Invitation Template'),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        side: BorderSide(color: Colors.pink[300]!),
+        foregroundColor: Colors.pink[700],
+      ),
+    );
+  }
+
+  /// Build canvas template preview with actual styling
+  Widget _buildCanvasPreview() {
+    final template = _selectedTemplate!;
+    final primaryColor = _parseColor(template.primaryColor);
+    final secondaryColor = _parseColor(template.secondaryColor);
+    final accentColor = _parseColor(template.accentColor);
+    final style = template.canvasStyle ?? 'elegant';
+    
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [accentColor, accentColor.withValues(alpha: 0.95)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Decorative elements based on style
+          if (style == 'floral') ...[
+            Positioned(top: 10, left: 10, child: Text('🌸', style: TextStyle(fontSize: 20))),
+            Positioned(top: 10, right: 10, child: Text('🌺', style: TextStyle(fontSize: 20))),
+            Positioned(bottom: 10, left: 10, child: Text('🌷', style: TextStyle(fontSize: 20))),
+            Positioned(bottom: 10, right: 10, child: Text('🌹', style: TextStyle(fontSize: 20))),
+          ],
+          
+          // Border
+          Positioned.fill(
+            child: Container(
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: primaryColor, width: 1.5),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border.all(color: primaryColor.withValues(alpha: 0.4), width: 0.5),
+              ),
+            ),
+          ),
+          
+          // Content
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'WEDDING INVITATION',
+                  style: TextStyle(
+                    color: secondaryColor.withValues(alpha: 0.6),
+                    fontSize: 10,
+                    letterSpacing: 3,
+                    fontWeight: FontWeight.w300,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Bride & Groom',
+                  style: TextStyle(
+                    color: secondaryColor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w300,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(width: 40, height: 1, color: primaryColor),
+                const SizedBox(height: 8),
+                Text(
+                  'Your Wedding Date',
+                  style: TextStyle(
+                    color: secondaryColor.withValues(alpha: 0.7),
+                    fontSize: 12,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Canvas badge
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.shade600,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.white, size: 12),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Canvas',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Parse hex color string to Color
+  Color _parseColor(String hexColor) {
+    try {
+      return Color(int.parse(hexColor.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return Colors.grey;
+    }
+  }
+
+  /// Build fallback preview when image fails to load
+  Widget _buildFallbackPreview(double height) {
+    return Container(
+      height: height,
+      color: Color(
+        int.parse(
+          _selectedTemplate!.primaryColor.replaceFirst('#', '0xFF'),
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.card_giftcard,
+          size: 40,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  /// Navigate to template selection screen
+  Future<void> _selectTemplate() async {
+    final result = await Get.to<InvitationCardTemplateModel>(
+      () => const InvitationTemplatesScreen(),
+      arguments: {
+        'selectionMode': true,
+        'selectedTemplateId': _selectedTemplate?.id,
+      },
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedTemplate = result;
+      });
+    }
   }
 
   // Step 2: Date & Location
@@ -338,6 +707,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   Widget _buildTimePicker({
     required String label,
     required VoidCallback onTap,
+    IconData icon = Icons.access_time,
   }) {
     return InkWell(
       onTap: onTap,
@@ -349,9 +719,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.access_time, size: 20),
+            Icon(icon, size: 20),
             const SizedBox(width: 8),
-            Text(label),
+            Expanded(child: Text(label, overflow: TextOverflow.ellipsis)),
           ],
         ),
       ),
@@ -640,6 +1010,28 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       ? 'Public'
                       : 'Invite Only',
                 ),
+                // Wedding-specific summary items
+                if (_isWedding) ...[
+                  const Divider(height: 24),
+                  Text(
+                    'Wedding Details',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.pink[700],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildSummaryItem(
+                    'Template',
+                    _selectedTemplate?.name ?? 'Not selected',
+                  ),
+                  if (_groomNameController.text.isNotEmpty ||
+                      _brideNameController.text.isNotEmpty)
+                    _buildSummaryItem(
+                      'Couple',
+                      '${_groomNameController.text} & ${_brideNameController.text}',
+                    ),
+                ],
               ],
             ),
           ),
@@ -811,6 +1203,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Future<void> _createEvent({bool asDraft = false}) async {
+    // Format time to HH:mm string for backend
+    String? formatTime(TimeOfDay? time) {
+      if (time == null) return null;
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    }
+
     final event = await controller.createEvent(
       title: _titleController.text,
       description: _descriptionController.text,
@@ -823,6 +1221,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       visibility: _visibility,
       status: asDraft ? 'DRAFT' : 'ACTIVE',
       chatEnabled: _chatEnabled,
+      // Wedding-specific fields
+      invitationCardTemplateId: _isWedding ? _selectedTemplate?.id : null,
+      weddingGroomName: _isWedding ? _groomNameController.text : null,
+      weddingBrideName: _isWedding ? _brideNameController.text : null,
+      weddingCeremonyTime: _isWedding ? formatTime(_ceremonyTime) : null,
+      weddingReceptionTime: _isWedding ? formatTime(_receptionTime) : null,
+      weddingReceptionVenue: _isWedding ? _receptionVenueController.text : null,
+      weddingDressCode: _isWedding ? _dressCodeController.text : null,
+      weddingRsvpPhone: _isWedding ? _rsvpPhoneController.text : null,
     );
 
     if (event != null) {

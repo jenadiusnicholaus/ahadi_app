@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,7 +7,9 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../controllers/events_controller.dart';
 import '../models/event_type_model.dart';
+import '../models/invitation_card_template_model.dart';
 import '../services/event_draft_service.dart';
+import 'invitation_templates_screen.dart';
 
 /// Create Event content - renders inside DashboardShell (responsive)
 class CreateEventContent extends StatefulWidget {
@@ -33,7 +34,6 @@ class _CreateEventContentState extends State<CreateEventContent> {
 
   int _currentStep = 0;
   final int _totalSteps = 4;
-  bool _hasDraft = false;
 
   // Form data
   final _titleController = TextEditingController();
@@ -42,6 +42,13 @@ class _CreateEventContentState extends State<CreateEventContent> {
   final _venueController = TextEditingController();
   final _targetController = TextEditingController();
 
+  // Wedding-specific controllers
+  final _groomNameController = TextEditingController();
+  final _brideNameController = TextEditingController();
+  final _receptionVenueController = TextEditingController();
+  final _dressCodeController = TextEditingController();
+  final _rsvpPhoneController = TextEditingController();
+
   EventTypeModel? _selectedEventType;
   DateTime? _startDate;
   TimeOfDay? _startTime;
@@ -49,6 +56,17 @@ class _CreateEventContentState extends State<CreateEventContent> {
   TimeOfDay? _endTime;
   String _visibility = 'PRIVATE';
   bool _autoDisburse = true;
+
+  // Wedding-specific fields
+  InvitationCardTemplateModel? _selectedTemplate;
+  TimeOfDay? _ceremonyTime;
+  TimeOfDay? _receptionTime;
+
+  /// Check if the selected event type is a wedding
+  bool get _isWedding {
+    final slug = _selectedEventType?.slug;
+    return slug != null && slug.toLowerCase() == 'wedding';
+  }
 
   // Cover image
   Uint8List? _coverImageBytes;
@@ -74,7 +92,6 @@ class _CreateEventContentState extends State<CreateEventContent> {
   void _checkForDraft() {
     final draft = _draftService.loadDraft();
     if (draft != null && !draft.isEmpty) {
-      setState(() => _hasDraft = true);
       // Show dialog to restore draft
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showRestoreDraftDialog(draft);
@@ -114,7 +131,6 @@ class _CreateEventContentState extends State<CreateEventContent> {
             onPressed: () {
               Get.back();
               _draftService.clearDraft();
-              setState(() => _hasDraft = false);
             },
             child: const Text('Discard'),
           ),
@@ -190,8 +206,6 @@ class _CreateEventContentState extends State<CreateEventContent> {
         _coverImageBytes = base64Decode(draft.coverImageBase64!);
         _coverImageName = draft.coverImageName;
       }
-
-      _hasDraft = false;
     });
 
     Get.snackbar(
@@ -250,139 +264,7 @@ class _CreateEventContentState extends State<CreateEventContent> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 900;
-
-    return Form(
-      key: _formKey,
-      child: isWideScreen ? _buildWideLayout() : _buildMobileLayout(),
-    );
-  }
-
-  // ============ WIDE SCREEN LAYOUT (Steps as cards side by side) ============
-  Widget _buildWideLayout() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Create New Event',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Fill in the details to create your event',
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  OutlinedButton(
-                    onPressed: widget.onCancel,
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => _createEvent(asDraft: true),
-                    icon: const Icon(Icons.save_outlined, size: 18),
-                    label: const Text('Save Draft'),
-                  ),
-                  const SizedBox(width: 12),
-                  Obx(
-                    () => ElevatedButton.icon(
-                      onPressed: controller.isCreating.value
-                          ? null
-                          : _createEvent,
-                      icon: controller.isCreating.value
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.check, size: 18),
-                      label: Text(
-                        controller.isCreating.value
-                            ? 'Creating...'
-                            : 'Create Event',
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-
-          // Two column layout
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left column - Main form
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    _buildCard(
-                      'Basic Information',
-                      'Tell us about your event',
-                      Icons.info_outline,
-                      _buildBasicInfoForm(),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildCard(
-                      'Date & Location',
-                      'When and where is your event?',
-                      Icons.calendar_today,
-                      _buildDateLocationForm(),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildCard(
-                      'Contribution Goal',
-                      'Set a target for contributions (optional)',
-                      Icons.attach_money,
-                      _buildContributionForm(),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 32),
-
-              // Right column - Settings & Preview
-              Expanded(
-                flex: 1,
-                child: Column(
-                  children: [
-                    _buildCard(
-                      'Event Settings',
-                      'Configure visibility and options',
-                      Icons.settings,
-                      _buildSettingsForm(),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildPreviewCard(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+    return Form(key: _formKey, child: _buildMobileLayout());
   }
 
   // ============ MOBILE LAYOUT (Stepper) ============
@@ -672,8 +554,233 @@ class _CreateEventContentState extends State<CreateEventContent> {
           ),
           maxLines: 4,
         ),
+
+        // Wedding-specific fields
+        if (_isWedding) ...[
+          const SizedBox(height: 32),
+          _buildWeddingDetailsSection(),
+        ],
       ],
     );
+  }
+
+  /// Build the wedding details section
+  Widget _buildWeddingDetailsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Header
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.pink[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.pink[200]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.favorite, color: Colors.pink[400]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Wedding Details',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.pink[700],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Add wedding-specific information for personalized invitations',
+                      style: TextStyle(fontSize: 12, color: Colors.pink[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Invitation Card Template Selection
+        const Text(
+          'Invitation Card Template',
+          style: TextStyle(fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Choose a beautiful template for your wedding invitations',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 12),
+
+        // Template Selection Button/Preview
+        _buildTemplateSelector(),
+        const SizedBox(height: 24),
+
+        // Bride & Groom Names
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _groomNameController,
+                decoration: InputDecoration(
+                  labelText: 'Groom\'s Name',
+                  hintText: 'e.g., John',
+                  prefixIcon: const Icon(Icons.person),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                controller: _brideNameController,
+                decoration: InputDecoration(
+                  labelText: 'Bride\'s Name',
+                  hintText: 'e.g., Jane',
+                  prefixIcon: const Icon(Icons.person),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  /// Build the template selector widget
+  Widget _buildTemplateSelector() {
+    if (_selectedTemplate != null) {
+      // Show selected template preview
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Template Preview
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
+              child: _selectedTemplate!.previewImage != null
+                  ? Image.network(
+                      _selectedTemplate!.previewImage!,
+                      height: 120,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 120,
+                        color: Color(
+                          int.parse(
+                            _selectedTemplate!.primaryColor.replaceFirst(
+                              '#',
+                              '0xFF',
+                            ),
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.card_giftcard,
+                            size: 40,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Container(
+                      height: 120,
+                      color: Color(
+                        int.parse(
+                          _selectedTemplate!.primaryColor.replaceFirst(
+                            '#',
+                            '0xFF',
+                          ),
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.card_giftcard,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedTemplate!.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          _selectedTemplate!.categoryDisplay,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _selectTemplate,
+                    icon: const Icon(Icons.swap_horiz),
+                    label: const Text('Change'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show selection button
+    return OutlinedButton.icon(
+      onPressed: _selectTemplate,
+      icon: const Icon(Icons.card_giftcard),
+      label: const Text('Choose Invitation Template'),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        side: BorderSide(color: Colors.pink[300]!),
+        foregroundColor: Colors.pink[700],
+      ),
+    );
+  }
+
+  /// Navigate to template selection screen
+  Future<void> _selectTemplate() async {
+    final result = await Get.to<InvitationCardTemplateModel>(
+      () => const InvitationTemplatesScreen(),
+      arguments: {
+        'selectionMode': true,
+        'selectedTemplateId': _selectedTemplate?.id,
+      },
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedTemplate = result;
+      });
+    }
   }
 
   Widget _buildImagePicker() {
@@ -1263,6 +1370,12 @@ class _CreateEventContentState extends State<CreateEventContent> {
       coverImageBase64 = 'data:$mimeType;base64,$base64Image';
     }
 
+    // Format time to HH:mm string for backend
+    String? formatTime(TimeOfDay? time) {
+      if (time == null) return null;
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    }
+
     final event = await controller.createEvent(
       title: _titleController.text,
       description: _descriptionController.text,
@@ -1275,6 +1388,15 @@ class _CreateEventContentState extends State<CreateEventContent> {
       visibility: _visibility,
       status: asDraft ? 'DRAFT' : 'ACTIVE',
       coverImageBase64: coverImageBase64,
+      // Wedding-specific fields
+      invitationCardTemplateId: _isWedding ? _selectedTemplate?.id : null,
+      weddingGroomName: _isWedding ? _groomNameController.text : null,
+      weddingBrideName: _isWedding ? _brideNameController.text : null,
+      weddingCeremonyTime: _isWedding ? formatTime(_ceremonyTime) : null,
+      weddingReceptionTime: _isWedding ? formatTime(_receptionTime) : null,
+      weddingReceptionVenue: _isWedding ? _receptionVenueController.text : null,
+      weddingDressCode: _isWedding ? _dressCodeController.text : null,
+      weddingRsvpPhone: _isWedding ? _rsvpPhoneController.text : null,
     );
 
     if (event != null) {

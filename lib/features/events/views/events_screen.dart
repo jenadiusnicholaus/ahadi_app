@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/widgets/dashboard_layout.dart';
@@ -10,26 +10,39 @@ import '../controllers/events_controller.dart';
 import '../models/event_model.dart';
 import 'widgets/event_filter_sheet.dart';
 
-class EventsScreen extends GetView<EventsController> {
+class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
 
   @override
+  State<EventsScreen> createState() => _EventsScreenState();
+}
+
+class _EventsScreenState extends State<EventsScreen> {
+  late EventsController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<EventsController>();
+    // Ensure data is loaded when screen is displayed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.ensureMyEventsLoaded();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
-    if (isWideScreen) {
-      return DashboardLayout(
-        currentRoute: 'events',
-        sidebarContent: _buildSidebarContent(context),
-        content: _buildMainContent(context, screenWidth),
-      );
-    }
-
     // Mobile layout
     return DashboardLayout(
       currentRoute: 'events',
       content: _buildMobileLayout(context),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Get.toNamed(AppRoutes.createEvent),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Create Event'),
+      ),
     );
   }
 
@@ -333,6 +346,7 @@ class EventsScreen extends GetView<EventsController> {
         ? 3
         : 2;
 
+    // Use PagedGridView's built-in loading indicators - no Obx wrapper needed
     return RefreshIndicator(
       onRefresh: () => Future.sync(() => pagingController.refresh()),
       child: PagedGridView<int, EventModel>(
@@ -346,8 +360,7 @@ class EventsScreen extends GetView<EventsController> {
         ),
         builderDelegate: PagedChildBuilderDelegate<EventModel>(
           itemBuilder: (context, event, index) => _buildWebEventCard(event),
-          firstPageProgressIndicatorBuilder: (_) =>
-              const Center(child: CircularProgressIndicator()),
+          firstPageProgressIndicatorBuilder: (_) => _buildGridShimmerLoading(crossAxisCount),
           newPageProgressIndicatorBuilder: (_) => const Center(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -629,56 +642,53 @@ class EventsScreen extends GetView<EventsController> {
 
   // ==================== MOBILE LAYOUT ====================
   Widget _buildMobileLayout(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            floating: true,
-            snap: true,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Get.back(),
-            ),
-            title: const Text(
-              'Events',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.qr_code_scanner),
-                onPressed: () => _showJoinDialog(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.filter_list),
-                onPressed: () => _showFilterSheet(context),
-              ),
-            ],
-            bottom: TabBar(
-              controller: controller.tabController,
-              labelColor: AppColors.primary,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: AppColors.primary,
-              tabs: const [
-                Tab(text: 'My Events'),
-                Tab(text: 'Joined'),
-              ],
-            ),
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        SliverAppBar(
+          floating: true,
+          snap: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Get.back(),
           ),
-        ],
-        body: TabBarView(
-          controller: controller.tabController,
-          children: [
-            _buildMobileEventsList(
-              controller.myEventsPagingController,
-              isMyEvents: true,
+          title: const Text(
+            'Events',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              onPressed: () => _showJoinDialog(context),
             ),
-            _buildMobileEventsList(
-              controller.invitedEventsPagingController,
-              isMyEvents: false,
+            IconButton(
+              icon: const Icon(Icons.filter_list),
+              onPressed: () => _showFilterSheet(context),
             ),
           ],
+          bottom: TabBar(
+            controller: controller.tabController,
+            labelColor: AppColors.primary,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: AppColors.primary,
+            tabs: const [
+              Tab(text: 'My Events'),
+              Tab(text: 'Joined'),
+            ],
+          ),
         ),
+      ],
+      body: TabBarView(
+        controller: controller.tabController,
+        children: [
+          _buildMobileEventsList(
+            controller.myEventsPagingController,
+            isMyEvents: true,
+          ),
+          _buildMobileEventsList(
+            controller.invitedEventsPagingController,
+            isMyEvents: false,
+          ),
+        ],
       ),
     );
   }
@@ -687,6 +697,7 @@ class EventsScreen extends GetView<EventsController> {
     PagingController<int, EventModel> pagingController, {
     required bool isMyEvents,
   }) {
+    // Use PagedListView's built-in loading indicators - no Obx wrapper needed
     return RefreshIndicator(
       onRefresh: () => Future.sync(() => pagingController.refresh()),
       child: PagedListView<int, EventModel>(
@@ -694,8 +705,7 @@ class EventsScreen extends GetView<EventsController> {
         padding: const EdgeInsets.all(16),
         builderDelegate: PagedChildBuilderDelegate<EventModel>(
           itemBuilder: (context, event, index) => _buildMobileEventCard(event),
-          firstPageProgressIndicatorBuilder: (_) =>
-              const Center(child: CircularProgressIndicator()),
+          firstPageProgressIndicatorBuilder: (_) => _buildListShimmerLoading(),
           firstPageErrorIndicatorBuilder: (_) =>
               _buildErrorState(() => pagingController.refresh()),
           noItemsFoundIndicatorBuilder: (_) => _buildEmptyState(isMyEvents),
@@ -911,6 +921,170 @@ class EventsScreen extends GetView<EventsController> {
             child: const Text('Join'),
           ),
         ],
+      ),
+    );
+  }
+
+  // ==================== SHIMMER LOADING ====================
+  Widget _buildListShimmerLoading() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 5,
+      itemBuilder: (context, index) => _buildShimmerEventCard(),
+    );
+  }
+
+  Widget _buildGridShimmerLoading(int crossAxisCount) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(32, 8, 32, 32),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 24,
+        mainAxisSpacing: 24,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: 6,
+      itemBuilder: (context, index) => _buildShimmerGridCard(),
+    );
+  }
+
+  Widget _buildShimmerEventCard() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Cover image placeholder
+            Container(
+              height: 160,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title placeholder
+                  Container(
+                    height: 18,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Date placeholder
+                  Container(
+                    height: 14,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Status placeholder
+                  Row(
+                    children: [
+                      Container(
+                        height: 24,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        height: 14,
+                        width: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerGridCard() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image placeholder
+            Expanded(
+              flex: 5,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+              ),
+            ),
+            // Details placeholder
+            Expanded(
+              flex: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 16,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 12,
+                      width: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      height: 8,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

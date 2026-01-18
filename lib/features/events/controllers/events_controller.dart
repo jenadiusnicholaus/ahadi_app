@@ -31,6 +31,8 @@ class EventsController extends GetxController
   final isLoading = false.obs;
   final isLoadingMore = false.obs;
   final isCreating = false.obs;
+  final isMyEventsFirstLoadComplete = false.obs;
+  final isInvitedEventsFirstLoadComplete = false.obs;
 
   // Event lists (kept for compatibility)
   final myEvents = <EventModel>[].obs;
@@ -62,23 +64,29 @@ class EventsController extends GetxController
   @override
   void onInit() {
     super.onInit();
+    debugPrint('🔄 [EventsController] onInit called');
     tabController = TabController(length: 2, vsync: this);
     tabController.addListener(_onTabChanged);
 
-    // Setup paging listeners
+    // Setup paging listeners - PagedListView will automatically trigger first page fetch
     myEventsPagingController.addPageRequestListener(_fetchMyEvents);
     invitedEventsPagingController.addPageRequestListener(_fetchInvitedEvents);
     publicEventsPagingController.addPageRequestListener(_fetchPublicEvents);
 
     loadInitialData();
-
-    // Trigger initial load of my events after a short delay to ensure widget is ready
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (myEventsPagingController.itemList == null) {
-        debugPrint('🔄 [EventsController] Triggering initial myEvents fetch');
-        _fetchMyEvents(1);
-      }
-    });
+    
+    // Ensure first page is loaded
+    ensureMyEventsLoaded();
+  }
+  
+  /// Ensures my events are loaded - call this when screen is displayed
+  void ensureMyEventsLoaded() {
+    debugPrint('🔄 [EventsController] ensureMyEventsLoaded - itemList: ${myEventsPagingController.itemList}, status: ${myEventsPagingController.value.status}');
+    if (myEventsPagingController.itemList == null) {
+      // First page hasn't been requested yet, trigger it
+      debugPrint('🔄 [EventsController] Notifying paging controller to load first page');
+      myEventsPagingController.notifyPageRequestListeners(1);
+    }
   }
 
   @override
@@ -95,8 +103,25 @@ class EventsController extends GetxController
   void _onTabChanged() {
     if (!tabController.indexIsChanging) {
       selectedTabIndex.value = tabController.index;
-      // Refresh current tab's paging controller
-      refreshCurrentTab();
+      // Only trigger initial fetch if data hasn't been loaded yet
+      // Don't auto-refresh on every tab change as it causes empty state flash
+      switch (tabController.index) {
+        case 0:
+          if (myEventsPagingController.itemList == null) {
+            myEventsPagingController.refresh();
+          }
+          break;
+        case 1:
+          if (invitedEventsPagingController.itemList == null) {
+            invitedEventsPagingController.refresh();
+          }
+          break;
+        case 2:
+          if (publicEventsPagingController.itemList == null) {
+            publicEventsPagingController.refresh();
+          }
+          break;
+      }
     }
   }
 
@@ -115,7 +140,7 @@ class EventsController extends GetxController
 
   Future<void> refreshCurrentTab() async {
     if (_isDisposed) return;
-    
+
     switch (tabController.index) {
       case 0:
         myEventsPagingController.refresh();
@@ -140,6 +165,7 @@ class EventsController extends GetxController
 
   // ============ My Events (Infinite Scroll) ============
   Future<void> _fetchMyEvents(int pageKey) async {
+    debugPrint('🔄 [EventsController] _fetchMyEvents called with pageKey: $pageKey');
     try {
       final events = await _eventService.getMyEvents(
         page: pageKey,
@@ -147,6 +173,8 @@ class EventsController extends GetxController
         status: selectedStatus.value,
         search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
       );
+
+      debugPrint('🔄 [EventsController] _fetchMyEvents got ${events.length} events');
 
       // Check if controller was disposed during async operation
       if (_isDisposed) return;
@@ -158,15 +186,20 @@ class EventsController extends GetxController
         myEventsPagingController.appendPage(events, pageKey + 1);
       }
 
+      debugPrint('🔄 [EventsController] _fetchMyEvents appended to paging controller. itemList count: ${myEventsPagingController.itemList?.length}');
+
       // Update observable list for compatibility
       if (pageKey == 1) {
         myEvents.assignAll(events);
+        isMyEventsFirstLoadComplete.value = true;
       } else {
         myEvents.addAll(events);
       }
     } catch (e) {
+      debugPrint('❌ [EventsController] _fetchMyEvents error: $e');
       if (!_isDisposed) {
         myEventsPagingController.error = e;
+        isMyEventsFirstLoadComplete.value = true;
       }
     }
   }
@@ -192,12 +225,14 @@ class EventsController extends GetxController
       // Update observable list for compatibility
       if (pageKey == 1) {
         invitedEvents.assignAll(events);
+        isInvitedEventsFirstLoadComplete.value = true;
       } else {
         invitedEvents.addAll(events);
       }
     } catch (e) {
       if (!_isDisposed) {
         invitedEventsPagingController.error = e;
+        isInvitedEventsFirstLoadComplete.value = true;
       }
     }
   }
@@ -309,6 +344,15 @@ class EventsController extends GetxController
     String status = 'DRAFT',
     String? coverImageBase64,
     bool chatEnabled = true,
+    // Wedding-specific fields
+    int? invitationCardTemplateId,
+    String? weddingGroomName,
+    String? weddingBrideName,
+    String? weddingCeremonyTime,
+    String? weddingReceptionTime,
+    String? weddingReceptionVenue,
+    String? weddingDressCode,
+    String? weddingRsvpPhone,
   }) async {
     isCreating.value = true;
     errorMessage.value = '';
@@ -331,6 +375,14 @@ class EventsController extends GetxController
         updatedAt: DateTime.now(),
         coverImageBase64: coverImageBase64,
         chatEnabled: chatEnabled,
+        invitationCardTemplateId: invitationCardTemplateId,
+        weddingGroomName: weddingGroomName,
+        weddingBrideName: weddingBrideName,
+        weddingCeremonyTime: weddingCeremonyTime,
+        weddingReceptionTime: weddingReceptionTime,
+        weddingReceptionVenue: weddingReceptionVenue,
+        weddingDressCode: weddingDressCode,
+        weddingRsvpPhone: weddingRsvpPhone,
       );
 
       debugPrint('📤 [EventsController] Creating event: ${event.title}');
@@ -413,6 +465,11 @@ class EventsController extends GetxController
     } finally {
       isLoading.value = false;
     }
+  }
+
+  // ============ Update Event Template ============
+  Future<bool> updateEventTemplate(int eventId, int templateId) async {
+    return updateEvent(eventId, {'invitation_card_template': templateId});
   }
 
   // ============ Delete Event ============

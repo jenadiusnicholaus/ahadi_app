@@ -8,31 +8,33 @@ class ParticipantsList extends StatelessWidget {
   final String eventId;
   final bool compact;
   final VoidCallback? onViewAll;
+  final void Function(ParticipantModel participant)? onSendMessage;
 
   const ParticipantsList({
     super.key,
     required this.eventId,
     this.compact = false,
     this.onViewAll,
+    this.onSendMessage,
   });
 
   @override
   Widget build(BuildContext context) {
     final eventsController = Get.find<EventsController>();
-    
+
     return Obx(() {
       final participants = eventsController.participants
           .where((p) => p.eventId.toString() == eventId)
           .toList();
-      
+
       if (participants.isEmpty) {
         return _buildEmptyState();
       }
-      
-      final displayedParticipants = compact 
+
+      final displayedParticipants = compact
           ? participants.take(3).toList()
           : participants;
-      
+
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         padding: const EdgeInsets.all(20),
@@ -54,11 +56,12 @@ class ParticipantsList extends StatelessWidget {
             const SizedBox(height: 16),
             _buildStatistics(participants),
             const SizedBox(height: 20),
-            
+
             // Participants list
-            ...displayedParticipants.map((participant) => 
-              _buildParticipantCard(participant)),
-            
+            ...displayedParticipants.map(
+              (participant) => _buildParticipantCard(participant),
+            ),
+
             if (compact && participants.length > 3) ...[
               const SizedBox(height: 12),
               _buildViewAllButton(participants.length - 3),
@@ -78,11 +81,7 @@ class ParticipantsList extends StatelessWidget {
             color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            Icons.people,
-            color: AppColors.primary,
-            size: 24,
-          ),
+          child: Icon(Icons.people, color: AppColors.primary, size: 24),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -99,19 +98,13 @@ class ParticipantsList extends StatelessWidget {
               ),
               Text(
                 '$totalCount member${totalCount == 1 ? '' : 's'} joined',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
             ],
           ),
         ),
         if (compact && onViewAll != null)
-          TextButton(
-            onPressed: onViewAll,
-            child: const Text('View All'),
-          ),
+          TextButton(onPressed: onViewAll, child: const Text('View All')),
       ],
     );
   }
@@ -119,15 +112,19 @@ class ParticipantsList extends StatelessWidget {
   Widget _buildStatistics(List<ParticipantModel> participants) {
     final confirmed = participants.where((p) => p.status == 'CONFIRMED').length;
     final pending = participants.where((p) => p.status == 'PENDING').length;
-    final attended = participants.where((p) => p.status == 'CONFIRMED').length; // Using CONFIRMED as attended for now
-    
+    final attended = participants
+        .where((p) => p.status == 'CONFIRMED')
+        .length; // Using CONFIRMED as attended for now
+
     return Row(
       children: [
         Expanded(child: _buildStatCard('Confirmed', confirmed, Colors.green)),
         const SizedBox(width: 12),
         Expanded(child: _buildStatCard('Pending', pending, Colors.orange)),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard('Attended', attended, AppColors.primary)),
+        Expanded(
+          child: _buildStatCard('Attended', attended, AppColors.primary),
+        ),
       ],
     );
   }
@@ -173,73 +170,104 @@ class ParticipantsList extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Avatar
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-            child: Text(
-              participant.name.isNotEmpty 
-                  ? participant.name[0].toUpperCase()
-                  : 'U',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+          Row(
+            children: [
+              // Avatar
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                child: Text(
+                  participant.name.isNotEmpty
+                      ? participant.name[0].toUpperCase()
+                      : 'U',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          
-          // Participant info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              const SizedBox(width: 16),
+
+              // Participant info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        participant.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            participant.name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        _buildStatusBadge(participant.status),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (participant.email.isNotEmpty)
+                      Text(
+                        participant.email,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
                         ),
                       ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.volunteer_activism,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Contributed: \$${participant.totalContributions.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
                     ),
-                    _buildStatusBadge(participant.status),
                   ],
                 ),
-                const SizedBox(height: 4),
-                if (participant.email.isNotEmpty)
-                  Text(
-                    participant.email,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.volunteer_activism, 
-                         size: 16, color: Colors.grey.shade600),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Contributed: \$${participant.totalContributions.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          // Send Message Button
+          if (onSendMessage != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => onSendMessage!(participant),
+                icon: Icon(
+                  Icons.message_outlined,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
+                label: Text(
+                  'Send Message',
+                  style: TextStyle(color: AppColors.primary),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -248,7 +276,7 @@ class ParticipantsList extends StatelessWidget {
   Widget _buildStatusBadge(String status) {
     Color color;
     String text;
-    
+
     switch (status.toUpperCase()) {
       case 'CONFIRMED':
         color = Colors.green;
@@ -266,7 +294,7 @@ class ParticipantsList extends StatelessWidget {
         color = Colors.grey;
         text = status;
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -307,11 +335,7 @@ class ParticipantsList extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(
-              Icons.arrow_forward,
-              size: 16,
-              color: AppColors.primary,
-            ),
+            Icon(Icons.arrow_forward, size: 16, color: AppColors.primary),
           ],
         ),
       ),
@@ -335,11 +359,7 @@ class ParticipantsList extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.people_outline,
-            size: 48,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.people_outline, size: 48, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           Text(
             'No Participants Yet',
@@ -352,10 +372,7 @@ class ParticipantsList extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Invite people to join this event',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
           ),
         ],
       ),

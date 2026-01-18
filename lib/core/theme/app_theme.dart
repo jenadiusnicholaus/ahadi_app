@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Primary Colors - Minimal grayscale
-  static const Color primary = Color(0xFF111827); // Gray 900
+  // Primary Colors - Clean Black
+  static const Color primary = Color(0xFF111827); // Gray 900 (near black)
   static const Color primaryLight = Color(0xFF374151); // Gray 700
-  static const Color primaryDark = Color(0xFF030712); // Gray 950
+  static const Color primaryDark = Color(0xFF030712); // Gray 950 (pure black)
 
   // Secondary Colors - Keep subtle
   static const Color secondary = Color(0xFF6B7280); // Gray 500
@@ -17,6 +17,10 @@ class AppColors {
   static const Color error = Color(0xFFDC2626); // Red 600
   static const Color success = Color(0xFF16A34A); // Green 600
   static const Color warning = Color(0xFFD97706); // Amber 600
+  
+  // Subscription/Plan Colors
+  static const Color premiumPurple = Color(0xFF7C3AED); // Violet 600
+  static const Color warningAmber = Color(0xFFF59E0B); // Amber 500
 
   // Text Colors
   static const Color textPrimary = Color(0xFF111827); // Gray 900

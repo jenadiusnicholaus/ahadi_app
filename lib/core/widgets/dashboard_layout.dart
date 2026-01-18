@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../theme/app_theme.dart';
@@ -75,124 +74,19 @@ class DashboardLayout extends StatelessWidget {
       label: 'Messages',
       icon: Icons.chat_bubble_outline,
       activeIcon: Icons.chat_bubble,
+      route: AppRoutes.chat,
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
-    if (isWideScreen) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: Column(
-          children: [
-            _buildNavbar(context),
-            Expanded(
-              child: Row(
-                children: [
-                  _buildSidebar(context),
-                  Expanded(child: content),
-                ],
-              ),
-            ),
-          ],
-        ),
-        floatingActionButton: floatingActionButton,
-      );
-    }
-
     // Mobile layout - return content directly with optional FAB
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: content,
       floatingActionButton: floatingActionButton,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: _buildBottomNav(context),
-    );
-  }
-
-  Widget _buildNavbar(BuildContext context) {
-    final authController = Get.find<AuthController>();
-
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Row(
-        children: [
-          // Back button (optional)
-          if (showBackButton) ...[
-            IconButton(
-              icon: Icon(Icons.arrow_back, color: Colors.grey.shade700),
-              onPressed: onBack ?? () => Get.back(),
-              tooltip: 'Back',
-            ),
-            const SizedBox(width: 8),
-          ],
-          // Logo
-          InkWell(
-            onTap: () => Get.offAllNamed(AppRoutes.events),
-            borderRadius: BorderRadius.circular(8),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primary,
-                        AppColors.primary.withValues(alpha: 0.8),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.celebration,
-                    size: 20,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'Ahadi',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 24),
-          // Breadcrumb or Title
-          if (breadcrumb != null)
-            breadcrumb!
-          else if (title != null)
-            Text(
-              title!,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-          const Spacer(),
-          // Custom Actions
-          if (actions != null) ...actions!,
-          const SizedBox(width: 16),
-          // Notifications
-          IconButton(
-            icon: Badge(
-              smallSize: 8,
-              child: Icon(
-                Icons.notifications_outlined,
-                color: Colors.grey.shade700,
-              ),
-            ),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 8),
-          // User Menu
-          Obx(() => _buildUserMenu(authController)),
-        ],
-      ),
     );
   }
 
@@ -285,69 +179,6 @@ class DashboardLayout extends StatelessWidget {
             break;
         }
       },
-    );
-  }
-
-  Widget _buildSidebar(BuildContext context) {
-    return Container(
-      width: 280,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(right: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Column(
-        children: [
-          // Navigation Items
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'MENU',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...mainNavItems.map((item) => _buildNavItem(item)),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // Custom Sidebar Content (page-specific)
-          if (sidebarContent != null)
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: sidebarContent!,
-              ),
-            ),
-          // Create Event Button
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => Get.toNamed(AppRoutes.createEvent),
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('Create Event'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

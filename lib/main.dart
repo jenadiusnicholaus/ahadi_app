@@ -7,7 +7,6 @@ import 'core/bindings/app_bindings.dart';
 import 'core/services/storage_service.dart';
 import 'core/services/deep_link_service.dart';
 import 'core/controllers/theme_controller.dart';
-import 'features/auth/controllers/auth_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

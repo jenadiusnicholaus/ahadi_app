@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'event_type_model.dart';
+import 'invitation_card_template_model.dart';
 
 class EventModel {
   final int id;
@@ -30,9 +32,24 @@ class EventModel {
   final String joinCode;
   final bool allowPublicJoin;
   final double totalContributions;
+  final double? availableBalance; // For disbursement
   final int participantCount;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  // Wedding invitation template
+  final int? invitationCardTemplateId;
+  final InvitationCardTemplateModel? invitationCardTemplate;
+  final String? customInvitationImage; // Custom uploaded invitation
+
+  // Wedding-specific fields
+  final String? weddingGroomName;
+  final String? weddingBrideName;
+  final String? weddingCeremonyTime;
+  final String? weddingReceptionTime;
+  final String? weddingReceptionVenue;
+  final String? weddingDressCode;
+  final String? weddingRsvpPhone;
 
   EventModel({
     required this.id,
@@ -64,9 +81,20 @@ class EventModel {
     this.joinCode = '',
     this.allowPublicJoin = true,
     this.totalContributions = 0,
+    this.availableBalance,
     this.participantCount = 0,
     required this.createdAt,
     required this.updatedAt,
+    this.invitationCardTemplateId,
+    this.invitationCardTemplate,
+    this.customInvitationImage,
+    this.weddingGroomName,
+    this.weddingBrideName,
+    this.weddingCeremonyTime,
+    this.weddingReceptionTime,
+    this.weddingReceptionVenue,
+    this.weddingDressCode,
+    this.weddingRsvpPhone,
   });
 
   String get displayCoverImage {
@@ -112,6 +140,41 @@ class EventModel {
       default:
         return visibility;
     }
+  }
+
+  /// Check if this is a wedding event or has invitation template
+  bool get isWedding {
+    // If has invitation template, show the section
+    if (invitationCardTemplate != null || invitationCardTemplateId != null) {
+      return true;
+    }
+    // Check event type
+    if (eventType != null) {
+      final slug = eventType!.slug.toLowerCase();
+      final name = eventType!.name.toLowerCase();
+      return slug.contains('wedding') || 
+             slug.contains('harusi') ||
+             name.contains('wedding') ||
+             name.contains('harusi');
+    }
+    return false;
+  }
+
+  /// Parse template ID from various formats
+  static int? _parseTemplateId(dynamic templateData) {
+    if (templateData == null) return null;
+    if (templateData is int) return templateData;
+    if (templateData is Map) return templateData['id'] as int?;
+    return null;
+  }
+
+  /// Parse full template object from Map
+  static InvitationCardTemplateModel? _parseTemplate(dynamic templateData) {
+    if (templateData == null) return null;
+    if (templateData is Map<String, dynamic>) {
+      return InvitationCardTemplateModel.fromJson(templateData);
+    }
+    return null;
   }
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
@@ -180,6 +243,9 @@ class EventModel {
       allowPublicJoin: json['allow_public_join'] ?? true,
       totalContributions:
           double.tryParse(json['total_contributions']?.toString() ?? '0') ?? 0,
+      availableBalance: double.tryParse(
+        json['available_balance']?.toString() ?? '',
+      ),
       participantCount: json['participant_count'] ?? 0,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
@@ -187,6 +253,21 @@ class EventModel {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])
           : DateTime.now(),
+      invitationCardTemplateId: _parseTemplateId(json['invitation_card_template']),
+      invitationCardTemplate: (() {
+        final parsed = _parseTemplate(json['invitation_card_template']);
+        debugPrint('🔍 [EventModel.fromJson] invitation_card_template raw: ${json['invitation_card_template']}');
+        debugPrint('🔍 [EventModel.fromJson] Parsed template: $parsed');
+        return parsed;
+      })(),
+      customInvitationImage: json['custom_invitation_image'],
+      weddingGroomName: json['wedding_groom_name'],
+      weddingBrideName: json['wedding_bride_name'],
+      weddingCeremonyTime: json['wedding_ceremony_time'],
+      weddingReceptionTime: json['wedding_reception_time'],
+      weddingReceptionVenue: json['wedding_reception_venue'],
+      weddingDressCode: json['wedding_dress_code'],
+      weddingRsvpPhone: json['wedding_rsvp_phone'],
     );
   }
 
@@ -194,7 +275,9 @@ class EventModel {
     final json = <String, dynamic>{
       'title': title,
       'description': description,
-      'event_type': eventTypeId ?? eventType?.id, // Django expects 'event_type' not 'event_type_id'
+      'event_type':
+          eventTypeId ??
+          eventType?.id, // Django expects 'event_type' not 'event_type_id'
       'start_date': startDate?.toIso8601String(),
       'end_date': endDate?.toIso8601String(),
       'location': location,
@@ -218,6 +301,34 @@ class EventModel {
       json['cover_image'] = coverImageBase64;
     } else if (coverImageUrl != null && coverImageUrl!.isNotEmpty) {
       json['cover_image_url'] = coverImageUrl;
+    }
+
+    // Add wedding invitation template
+    if (invitationCardTemplateId != null) {
+      json['invitation_card_template'] = invitationCardTemplateId;
+    }
+
+    // Add wedding-specific fields
+    if (weddingGroomName != null && weddingGroomName!.isNotEmpty) {
+      json['wedding_groom_name'] = weddingGroomName;
+    }
+    if (weddingBrideName != null && weddingBrideName!.isNotEmpty) {
+      json['wedding_bride_name'] = weddingBrideName;
+    }
+    if (weddingCeremonyTime != null && weddingCeremonyTime!.isNotEmpty) {
+      json['wedding_ceremony_time'] = weddingCeremonyTime;
+    }
+    if (weddingReceptionTime != null && weddingReceptionTime!.isNotEmpty) {
+      json['wedding_reception_time'] = weddingReceptionTime;
+    }
+    if (weddingReceptionVenue != null && weddingReceptionVenue!.isNotEmpty) {
+      json['wedding_reception_venue'] = weddingReceptionVenue;
+    }
+    if (weddingDressCode != null && weddingDressCode!.isNotEmpty) {
+      json['wedding_dress_code'] = weddingDressCode;
+    }
+    if (weddingRsvpPhone != null && weddingRsvpPhone!.isNotEmpty) {
+      json['wedding_rsvp_phone'] = weddingRsvpPhone;
     }
 
     return json;
@@ -256,6 +367,16 @@ class EventModel {
     int? participantCount,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? invitationCardTemplateId,
+    InvitationCardTemplateModel? invitationCardTemplate,
+    String? customInvitationImage,
+    String? weddingGroomName,
+    String? weddingBrideName,
+    String? weddingCeremonyTime,
+    String? weddingReceptionTime,
+    String? weddingReceptionVenue,
+    String? weddingDressCode,
+    String? weddingRsvpPhone,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -290,6 +411,20 @@ class EventModel {
       participantCount: participantCount ?? this.participantCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      invitationCardTemplateId:
+          invitationCardTemplateId ?? this.invitationCardTemplateId,
+      invitationCardTemplate:
+          invitationCardTemplate ?? this.invitationCardTemplate,
+      customInvitationImage:
+          customInvitationImage ?? this.customInvitationImage,
+      weddingGroomName: weddingGroomName ?? this.weddingGroomName,
+      weddingBrideName: weddingBrideName ?? this.weddingBrideName,
+      weddingCeremonyTime: weddingCeremonyTime ?? this.weddingCeremonyTime,
+      weddingReceptionTime: weddingReceptionTime ?? this.weddingReceptionTime,
+      weddingReceptionVenue:
+          weddingReceptionVenue ?? this.weddingReceptionVenue,
+      weddingDressCode: weddingDressCode ?? this.weddingDressCode,
+      weddingRsvpPhone: weddingRsvpPhone ?? this.weddingRsvpPhone,
     );
   }
 }

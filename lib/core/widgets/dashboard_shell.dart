@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -245,40 +244,26 @@ class DashboardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-    final dashboardController = Get.find<DashboardController>();
-
-    if (isWideScreen) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: Column(
-          children: [
-            _buildNavbar(context, dashboardController),
-            Expanded(
-              child: Row(
-                children: [
-                  _buildSidebar(context, dashboardController),
-                  Expanded(child: content),
-                ],
-              ),
-            ),
-          ],
-        ),
-        floatingActionButton: floatingActionButton,
-      );
+    // Ensure DashboardController is registered
+    if (!Get.isRegistered<DashboardController>()) {
+      Get.put(DashboardController());
     }
+    final dashboardController = Get.find<DashboardController>();
 
     // Mobile layout
     return Obx(() {
       final current = dashboardController.currentContent.value;
-      final hideBottomNav = current == DashboardContent.messages;
-      
+      final isMessagesView = current == DashboardContent.messages;
+
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
-        appBar: _buildMobileAppBar(context, dashboardController),
+        appBar: isMessagesView
+            ? null
+            : _buildMobileAppBar(context, dashboardController),
         body: content,
-        bottomNavigationBar: hideBottomNav ? null : _buildBottomNav(context, dashboardController),
+        bottomNavigationBar: isMessagesView
+            ? null
+            : _buildBottomNav(context, dashboardController),
         floatingActionButton: floatingActionButton,
       );
     });
@@ -291,48 +276,43 @@ class DashboardShell extends StatelessWidget {
     return PreferredSize(
       preferredSize: const Size.fromHeight(kToolbarHeight),
       child: Obx(() {
-      final current = dashboardController.currentContent.value;
-      final isMessagesView = current == DashboardContent.messages;
-      
-      if (isMessagesView) {
-        // ChatScreen has its own AppBar, return empty
-        return const SizedBox.shrink();
-      }
-      
-      // Default AppBar for other views
-      return AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: dashboardController.canGoBack
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                onPressed: () => dashboardController.goBack(),
-              )
-            : IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                onPressed: () => Get.offAllNamed('/public/events'),
+        // Default AppBar for views
+        return AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: dashboardController.canGoBack
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                  onPressed: () => dashboardController.goBack(),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                  onPressed: () => Get.offAllNamed('/public/events'),
+                ),
+          title: () {
+            final breadcrumbs = dashboardController.breadcrumbs;
+            if (breadcrumbs.isEmpty) return const Text('Ahadi');
+            return Text(
+              breadcrumbs.last.label,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
               ),
-        title: () {
-          final breadcrumbs = dashboardController.breadcrumbs;
-          if (breadcrumbs.isEmpty) return const Text('Ahadi');
-          return Text(
-            breadcrumbs.last.label,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.w600,
+            );
+          }(),
+          actions: [
+            IconButton(
+              icon: const Icon(
+                Icons.notifications_outlined,
+                color: Colors.black87,
+              ),
+              onPressed: () {},
             ),
-          );
-        }(),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-            onPressed: () {},
-          ),
-          // Profile button
-          _buildProfileButton(),
-          const SizedBox(width: 8),
-        ],
-      );
+            // Profile button
+            _buildProfileButton(),
+            const SizedBox(width: 8),
+          ],
+        );
       }),
     );
   }
@@ -478,360 +458,6 @@ class DashboardShell extends StatelessWidget {
     });
   }
 
-  Widget _buildNavbar(
-    BuildContext context,
-    DashboardController dashboardController,
-  ) {
-    final authController = Get.find<AuthController>();
-
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Logo
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.celebration,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Ahadi',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 48),
-
-          // Navigation items
-          Expanded(
-            child: Obx(
-              () {
-                // Determine which nav items to show based on current page
-                final current = dashboardController.currentContent.value;
-                final bool isEventContext = current == DashboardContent.eventDetail ||
-                    current == DashboardContent.contributions ||
-                    current == DashboardContent.addContribution ||
-                    current == DashboardContent.paymentCheckout ||
-                    current == DashboardContent.participants ||
-                    current == DashboardContent.invitations ||
-                    current == DashboardContent.messages;
-                
-                final navItems = isEventContext 
-                    ? eventNavItems 
-                    : mainNavItems.where((item) => item.id != 'messages').toList();
-                
-                return Row(
-                  children: navItems.map((item) {
-                    final isActive = _isNavItemActive(
-                      item,
-                      dashboardController.currentContent.value,
-                    );
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: TextButton.icon(
-                        onPressed: () {
-                          if (item.id == 'messages') {
-                            // Special handling for messages - check if we have an event context
-                            final event = dashboardController.contentArgs['event'];
-                            if (event != null) {
-                              dashboardController.navigateTo(
-                                DashboardContent.messages,
-                                args: {
-                                  'event': event,
-                                  'eventTitle': dashboardController.contentArgs['eventTitle'],
-                                },
-                              );
-                            } else {
-                              Get.snackbar(
-                                'Select an Event',
-                                'Please select an event from "My Events" to view its messages',
-                                snackPosition: SnackPosition.BOTTOM,
-                                duration: const Duration(seconds: 2),
-                              );
-                            }
-                          } else if (item.content != null) {
-                            if (isEventContext && item.content != null) {
-                              // In event context, navigate with event args
-                              final event = dashboardController.contentArgs['event'];
-                              if (event != null) {
-                                dashboardController.navigateTo(
-                                  item.content!,
-                                  args: {
-                                    'event': event,
-                                    'eventTitle': dashboardController.contentArgs['eventTitle'],
-                                  },
-                                );
-                              }
-                            } else {
-                              dashboardController.goToRoot(item.content!);
-                            }
-                          }
-                          item.onTap?.call();
-                        },
-                      icon: Icon(
-                        isActive ? (item.activeIcon ?? item.icon) : item.icon,
-                        size: 20,
-                        color: isActive
-                            ? AppColors.primary
-                            : Colors.grey.shade600,
-                      ),
-                      label: Text(
-                        item.label,
-                        style: TextStyle(
-                          color: isActive
-                              ? AppColors.primary
-                              : Colors.grey.shade600,
-                          fontWeight: isActive
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        backgroundColor: isActive
-                            ? AppColors.primary.withOpacity(0.1)
-                            : null,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              );
-              },
-            ),
-          ),
-
-          // Actions
-          if (actions != null) ...actions!,
-
-          // Create Event button
-          ElevatedButton.icon(
-            onPressed: () {
-              // Navigate to create event inside dashboard
-              final dashboardController = Get.find<DashboardController>();
-              dashboardController.navigateTo(DashboardContent.createEvent);
-            },
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Create Event'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // User menu
-          PopupMenuButton<String>(
-            offset: const Offset(0, 48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Obx(() {
-                  final name = authController.user.value?.fullName;
-                  final initial = (name != null && name.isNotEmpty)
-                      ? name[0].toUpperCase()
-                      : 'U';
-                  return CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
-                    backgroundImage:
-                        authController.user.value?.profilePicture != null
-                        ? NetworkImage(
-                            authController.user.value!.profilePicture!,
-                          )
-                        : null,
-                    child: authController.user.value?.profilePicture == null
-                        ? Text(
-                            initial,
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  );
-                }),
-                const SizedBox(width: 8),
-                Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
-              ],
-            ),
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'profile',
-                child: Row(
-                  children: [
-                    const Icon(Icons.person_outline, size: 20),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Obx(
-                          () => Text(
-                            authController.user.value?.fullName ?? 'User',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        Obx(
-                          () => Text(
-                            authController.user.value?.phone ?? '',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'settings',
-                child: Row(
-                  children: [
-                    Icon(Icons.settings_outlined, size: 20),
-                    SizedBox(width: 12),
-                    Text('Settings'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, size: 20, color: Colors.red.shade600),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Logout',
-                      style: TextStyle(color: Colors.red.shade600),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            onSelected: (value) {
-              if (value == 'logout') {
-                authController.signOut();
-              } else if (value == 'profile' || value == 'settings') {
-                dashboardController.navigateTo(DashboardContent.profile);
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebar(
-    BuildContext context,
-    DashboardController dashboardController,
-  ) {
-    return Container(
-      width: 280,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(right: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Column(
-        children: [
-          // Breadcrumbs
-          Obx(() {
-            final breadcrumbs = dashboardController.breadcrumbs;
-            if (breadcrumbs.length <= 1) return const SizedBox.shrink();
-
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
-              ),
-              child: Row(
-                children: [
-                  for (int i = 0; i < breadcrumbs.length; i++) ...[
-                    if (i > 0)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Icon(
-                          Icons.chevron_right,
-                          size: 16,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                    Flexible(
-                      child: InkWell(
-                        onTap: breadcrumbs[i].onTap,
-                        child: Text(
-                          breadcrumbs[i].label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: breadcrumbs[i].onTap != null
-                                ? AppColors.primary
-                                : Colors.grey.shade600,
-                            fontWeight: i == breadcrumbs.length - 1
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }),
-
-          // Sidebar content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child:
-                  sidebarContent ?? _buildDefaultSidebar(dashboardController),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDefaultSidebar(DashboardController dashboardController) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -886,73 +512,72 @@ class DashboardShell extends StatelessWidget {
     BuildContext context,
     DashboardController dashboardController,
   ) {
-    return Obx(
-      () {
-        final current = dashboardController.currentContent.value;
-        
-        // Determine which nav items to show based on current page
-        final bool isEventContext = current == DashboardContent.eventDetail ||
-            current == DashboardContent.contributions ||
-            current == DashboardContent.addContribution ||
-            current == DashboardContent.paymentCheckout ||
-            current == DashboardContent.participants ||
-            current == DashboardContent.invitations ||
-            current == DashboardContent.messages;
-        
-        final navItems = isEventContext 
-            ? eventNavItems 
-            : mainNavItems.where((item) => item.id != 'messages').toList();
-        
-        return BottomNavigationBar(
-          currentIndex: _getBottomNavIndex(current, isEventContext),
-          onTap: (index) {
-            if (isEventContext) {
-              // Event context navigation
-              final contents = [
-                DashboardContent.eventDetail,
-                DashboardContent.contributions,
-                DashboardContent.participants,
-                DashboardContent.messages,
-              ];
-              if (index < contents.length) {
-                // Get current event from args
-                final event = dashboardController.contentArgs['event'];
-                if (event != null) {
-                  dashboardController.navigateTo(
-                    contents[index],
-                    args: {'event': event, 'eventTitle': dashboardController.contentArgs['eventTitle']},
-                  );
-                }
-              }
-            } else {
-              // Main dashboard navigation
-              final contents = [
-                DashboardContent.events,
-                DashboardContent.discover,
-                DashboardContent.calendar,
-                DashboardContent.profile,
-              ];
-              if (index < contents.length) {
-                dashboardController.goToRoot(contents[index]);
+    return Obx(() {
+      final current = dashboardController.currentContent.value;
+
+      // Determine which nav items to show based on current page
+      final bool isEventContext =
+          current == DashboardContent.eventDetail ||
+          current == DashboardContent.contributions ||
+          current == DashboardContent.addContribution ||
+          current == DashboardContent.paymentCheckout ||
+          current == DashboardContent.participants ||
+          current == DashboardContent.invitations ||
+          current == DashboardContent.messages;
+
+      final navItems = isEventContext
+          ? eventNavItems
+          : mainNavItems.where((item) => item.id != 'messages').toList();
+
+      return BottomNavigationBar(
+        currentIndex: _getBottomNavIndex(current, isEventContext),
+        onTap: (index) {
+          if (isEventContext) {
+            // Event context navigation
+            final contents = [
+              DashboardContent.eventDetail,
+              DashboardContent.contributions,
+              DashboardContent.participants,
+              DashboardContent.messages,
+            ];
+            if (index < contents.length) {
+              // Get current event from args
+              final event = dashboardController.contentArgs['event'];
+              if (event != null) {
+                dashboardController.navigateTo(
+                  contents[index],
+                  args: {
+                    'event': event,
+                    'eventTitle': dashboardController.contentArgs['eventTitle'],
+                  },
+                );
               }
             }
-          },
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: Colors.grey.shade600,
-          items: navItems.map((item) {
-            final isActive = _isNavItemActive(
-              item,
-              current,
-            );
-            return BottomNavigationBarItem(
-              icon: Icon(isActive ? (item.activeIcon ?? item.icon) : item.icon),
-              label: item.label,
-            );
-          }).toList(),
-        );
-      },
-    );
+          } else {
+            // Main dashboard navigation
+            final contents = [
+              DashboardContent.events,
+              DashboardContent.discover,
+              DashboardContent.calendar,
+              DashboardContent.profile,
+            ];
+            if (index < contents.length) {
+              dashboardController.goToRoot(contents[index]);
+            }
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: Colors.grey.shade600,
+        items: navItems.map((item) {
+          final isActive = _isNavItemActive(item, current);
+          return BottomNavigationBarItem(
+            icon: Icon(isActive ? (item.activeIcon ?? item.icon) : item.icon),
+            label: item.label,
+          );
+        }).toList(),
+      );
+    });
   }
 
   bool _isNavItemActive(NavItem item, DashboardContent current) {

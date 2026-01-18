@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/services/api_service.dart';
+import '../models/event_wallet_model.dart';
 
 /// Payment provider model
 class PaymentProviderModel {
@@ -353,6 +354,74 @@ class PaymentService extends GetxService {
         ApiEndpoints.paymentEventContributions(eventId),
       );
       return response.data;
+    } on dio_pkg.DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ============ Event Wallet (Event-level financial data) ============
+  
+  /// Get event wallet with disbursement history
+  Future<EventWalletModel> getEventWallet(int eventId) async {
+    try {
+      debugPrint('📡 [PaymentService] Getting wallet for event $eventId');
+      final response = await _api.dio.get(
+        ApiEndpoints.paymentEventDisbursements(eventId),
+      );
+      
+      debugPrint('📡 [PaymentService] Event wallet response: ${response.data}');
+      
+      final data = response.data['data'] ?? response.data;
+      return EventWalletModel.fromJson(data);
+    } on dio_pkg.DioException catch (e) {
+      debugPrint('❌ [PaymentService] Error getting event wallet: ${e.message}');
+      throw _handleError(e);
+    }
+  }
+
+  /// Get payout summary (gross, fees, net)
+  Future<Map<String, dynamic>> getEventPayoutSummary(int eventId) async {
+    try {
+      final response = await _api.dio.get(
+        ApiEndpoints.paymentEventPayout(eventId),
+      );
+      return response.data['data'] ?? response.data;
+    } on dio_pkg.DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Get event transactions (contribution payments)
+  Future<List<EventTransactionModel>> getEventTransactions(int eventId) async {
+    try {
+      final response = await _api.dio.get(
+        ApiEndpoints.paymentEventTransactions(eventId),
+      );
+      
+      final data = response.data['data'] ?? response.data;
+      final transactions = data['transactions'] as List? ?? [];
+      
+      return transactions
+          .map((t) => EventTransactionModel.fromJson(t))
+          .toList();
+    } on dio_pkg.DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Get all user's disbursements across events
+  Future<List<EventDisbursementModel>> getMyDisbursements() async {
+    try {
+      final response = await _api.dio.get(
+        ApiEndpoints.paymentMyDisbursements,
+      );
+      
+      final data = response.data['data'] ?? response.data;
+      final disbursements = data['disbursements'] as List? ?? [];
+      
+      return disbursements
+          .map((d) => EventDisbursementModel.fromJson(d))
+          .toList();
     } on dio_pkg.DioException catch (e) {
       throw _handleError(e);
     }

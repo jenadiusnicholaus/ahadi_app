@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/theme/app_theme.dart';
@@ -63,14 +62,11 @@ class _AddContributionContentState extends State<AddContributionContent> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isWideScreen ? 48 : 16),
+      padding: const EdgeInsets.all(16),
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: isWideScreen ? 600 : 500),
+          constraints: const BoxConstraints(maxWidth: 500),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -100,7 +96,7 @@ class _AddContributionContentState extends State<AddContributionContent> {
                   side: BorderSide(color: Colors.grey.shade200),
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(isWideScreen ? 32 : 20),
+                  padding: const EdgeInsets.all(20),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -110,8 +106,8 @@ class _AddContributionContentState extends State<AddContributionContent> {
                         TextFormField(
                           controller: _amountController,
                           keyboardType: TextInputType.number,
-                          style: TextStyle(
-                            fontSize: isWideScreen ? 28 : 24,
+                          style: const TextStyle(
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                           ),
                           decoration: InputDecoration(
@@ -119,16 +115,16 @@ class _AddContributionContentState extends State<AddContributionContent> {
                             hintText: '50,000',
                             prefixText: 'TZS ',
                             prefixStyle: TextStyle(
-                              fontSize: isWideScreen ? 24 : 20,
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.grey.shade600,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: isWideScreen ? 20 : 16,
+                              vertical: 16,
                             ),
                           ),
                           validator: (value) {
@@ -208,7 +204,7 @@ class _AddContributionContentState extends State<AddContributionContent> {
                             ),
                           ],
                         ),
-                        SizedBox(height: isWideScreen ? 24 : 16),
+                        const SizedBox(height: 16),
 
                         // Message (optional)
                         TextFormField(
@@ -219,13 +215,13 @@ class _AddContributionContentState extends State<AddContributionContent> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: isWideScreen ? 18 : 14,
+                              vertical: 14,
                             ),
                           ),
                         ),
-                        SizedBox(height: isWideScreen ? 32 : 20),
+                        const SizedBox(height: 20),
 
                         // Buttons row
                         Row(
@@ -234,17 +230,17 @@ class _AddContributionContentState extends State<AddContributionContent> {
                               child: OutlinedButton(
                                 onPressed: widget.onCancel,
                                 style: OutlinedButton.styleFrom(
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: isWideScreen ? 18 : 14,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
                                   ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                                child: Text(
+                                child: const Text(
                                   'Cancel',
                                   style: TextStyle(
-                                    fontSize: isWideScreen ? 16 : 14,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ),
@@ -259,8 +255,8 @@ class _AddContributionContentState extends State<AddContributionContent> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: Colors.white,
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: isWideScreen ? 18 : 14,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
                                   ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -275,10 +271,10 @@ class _AddContributionContentState extends State<AddContributionContent> {
                                           color: Colors.white,
                                         ),
                                       )
-                                    : Text(
+                                    : const Text(
                                         'Pay Now',
                                         style: TextStyle(
-                                          fontSize: isWideScreen ? 18 : 16,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -293,13 +289,13 @@ class _AddContributionContentState extends State<AddContributionContent> {
               ),
 
               // Info note
-              SizedBox(height: isWideScreen ? 20 : 12),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.info_outline,
-                    size: isWideScreen ? 18 : 16,
+                    size: 16,
                     color: Colors.grey.shade600,
                   ),
                   const SizedBox(width: 8),

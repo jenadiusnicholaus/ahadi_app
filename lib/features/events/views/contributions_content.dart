@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -12,12 +11,14 @@ class ContributionsContent extends StatefulWidget {
   final EventModel event;
   final VoidCallback onAddContribution;
   final VoidCallback onPaymentCheckout;
+  final void Function(ContributionModel contribution)? onSendMessage;
 
   const ContributionsContent({
     super.key,
     required this.event,
     required this.onAddContribution,
     required this.onPaymentCheckout,
+    this.onSendMessage,
   });
 
   @override
@@ -52,15 +53,12 @@ class _ContributionsContentState extends State<ContributionsContent>
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = kIsWeb && screenWidth >= 800;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Header
         Padding(
-          padding: EdgeInsets.all(isWideScreen ? 32 : 16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -82,40 +80,19 @@ class _ContributionsContentState extends State<ContributionsContent>
                       ),
                     ],
                   ),
-                  if (isWideScreen) ...[
-                    Row(
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: widget.onAddContribution,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Add Manual'),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: widget.onPaymentCheckout,
-                          icon: const Icon(Icons.payment, size: 18),
-                          label: const Text('Contribute'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
               const SizedBox(height: 24),
 
               // Stats cards
-              _buildStatsCards(isWideScreen),
+              _buildStatsCards(),
             ],
           ),
         ),
 
         // Filters and search
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: isWideScreen ? 32 : 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             children: [
               // Tabs
@@ -173,10 +150,7 @@ class _ContributionsContentState extends State<ContributionsContent>
 
             return TabBarView(
               controller: _tabController,
-              children: [
-                _buildContributionsList(isWideScreen),
-                _buildContributorsList(isWideScreen),
-              ],
+              children: [_buildContributionsList(), _buildContributorsList()],
             );
           }),
         ),
@@ -184,7 +158,7 @@ class _ContributionsContentState extends State<ContributionsContent>
     );
   }
 
-  Widget _buildStatsCards(bool isWideScreen) {
+  Widget _buildStatsCards() {
     return Obx(() {
       final contributions = controller.contributions;
       final completedContributions = contributions
@@ -224,19 +198,6 @@ class _ContributionsContentState extends State<ContributionsContent>
           'color': Colors.orange,
         },
       ];
-
-      if (isWideScreen) {
-        return Row(
-          children: stats.map((stat) {
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: _buildStatCard(stat),
-              ),
-            );
-          }).toList(),
-        );
-      }
 
       return GridView.count(
         crossAxisCount: 2,
@@ -283,7 +244,7 @@ class _ContributionsContentState extends State<ContributionsContent>
     );
   }
 
-  Widget _buildContributionsList(bool isWideScreen) {
+  Widget _buildContributionsList() {
     return Obx(() {
       var contributions = controller.contributions.toList();
 
@@ -324,10 +285,6 @@ class _ContributionsContentState extends State<ContributionsContent>
         );
       }
 
-      if (isWideScreen) {
-        return _buildContributionsTable(contributions);
-      }
-
       return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: contributions.length,
@@ -336,81 +293,6 @@ class _ContributionsContentState extends State<ContributionsContent>
         },
       );
     });
-  }
-
-  Widget _buildContributionsTable(List<ContributionModel> contributions) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.shade200),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: DataTable(
-            columnSpacing: 24,
-            horizontalMargin: 24,
-            headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
-            columns: const [
-              DataColumn(label: Text('Contributor')),
-              DataColumn(label: Text('Amount')),
-              DataColumn(label: Text('Method')),
-              DataColumn(label: Text('Date')),
-              DataColumn(label: Text('Status')),
-              DataColumn(label: Text('Actions')),
-            ],
-            rows: contributions.map((contribution) {
-              return DataRow(
-                cells: [
-                  DataCell(
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: AppColors.primary.withOpacity(0.1),
-                          child: Text(
-                            contribution.contributorName.isNotEmpty
-                                ? contribution.contributorName[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          contribution.contributorName.isNotEmpty
-                              ? contribution.contributorName
-                              : 'Anonymous',
-                        ),
-                      ],
-                    ),
-                  ),
-                  DataCell(
-                    Text(
-                      'TZS ${_formatAmount(contribution.amount)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  DataCell(Text(contribution.paymentMethodDisplay)),
-                  DataCell(Text(_formatDate(contribution.createdAt))),
-                  DataCell(_buildStatusBadge(contribution.status)),
-                  DataCell(
-                    IconButton(
-                      icon: const Icon(Icons.more_vert, size: 20),
-                      onPressed: () => _showContributionActions(contribution),
-                    ),
-                  ),
-                ],
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildContributionCard(ContributionModel contribution) {
@@ -472,6 +354,44 @@ class _ContributionsContentState extends State<ContributionsContent>
                       ),
                     ),
                     _buildStatusBadge(contribution.status),
+                    if (widget.onSendMessage != null &&
+                        contribution.participantId != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: InkWell(
+                          onTap: () => widget.onSendMessage!(contribution),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.message_outlined,
+                                  size: 14,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Message',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -513,7 +433,7 @@ class _ContributionsContentState extends State<ContributionsContent>
     );
   }
 
-  Widget _buildContributorsList(bool isWideScreen) {
+  Widget _buildContributorsList() {
     return Obx(() {
       final contributions = controller.contributions
           .where((c) => c.status == 'CONFIRMED' || c.status == 'COMPLETED')
@@ -542,7 +462,7 @@ class _ContributionsContentState extends State<ContributionsContent>
       }
 
       return ListView.builder(
-        padding: EdgeInsets.all(isWideScreen ? 32 : 16),
+        padding: const EdgeInsets.all(16),
         itemCount: sortedContributors.length,
         itemBuilder: (context, index) {
           final entry = sortedContributors[index];
