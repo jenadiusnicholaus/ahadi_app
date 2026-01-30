@@ -71,5 +71,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Facebook SDK queries -->
+        <provider android:authorities="com.facebook.katana.provider.PlatformProvider" />
     </queries>
 </manifest>

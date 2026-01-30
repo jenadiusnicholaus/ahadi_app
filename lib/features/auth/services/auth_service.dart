@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:dio/dio.dart';
@@ -45,34 +46,63 @@ class AuthService {
   // Google Sign-In
   Future<AuthResponse> signInWithGoogle() async {
     try {
+      debugPrint('🔐 Starting Google Sign-In...');
+      debugPrint('🔐 Google Client ID: ${AppConfig.googleClientId}');
+      debugPrint('🔐 Google iOS Client ID: ${AppConfig.googleIosClientId}');
+      
       // Start Google Sign-In flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
+        debugPrint('🔐 Google Sign-In was cancelled by user');
         return AuthResponse(
           success: false,
           message: 'Google sign-in was cancelled',
         );
       }
 
+      debugPrint('🔐 Google user: ${googleUser.email}');
+
       // Get auth details
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
-      // Send token to backend
+      debugPrint('🔐 Got Google auth tokens');
+      debugPrint('🔐 ID Token: ${googleAuth.idToken != null ? "present (${googleAuth.idToken!.length} chars)" : "null"}');
+      debugPrint('🔐 Access Token: ${googleAuth.accessToken != null ? "present" : "null"}');
+
+      // Send token to backend - prefer id_token, fallback to access_token
+      // Backend accepts either one, not both
+      final Map<String, dynamic> data = {};
+      if (googleAuth.idToken != null) {
+        data['id_token'] = googleAuth.idToken;
+      } else if (googleAuth.accessToken != null) {
+        data['access_token'] = googleAuth.accessToken;
+      } else {
+        debugPrint('🔐 ERROR: No tokens received from Google');
+        return AuthResponse(
+          success: false,
+          message: 'Failed to get authentication tokens from Google',
+        );
+      }
+
+      debugPrint('🔐 Sending to backend: ${ApiEndpoints.googleLogin}');
       final response = await _apiService.post(
         ApiEndpoints.googleLogin,
-        data: {
-          'id_token': googleAuth.idToken,
-          'access_token': googleAuth.accessToken,
-          'platform': 'mobile',
-        },
+        data: data,
       );
+
+      debugPrint('🔐 Backend response status: ${response.statusCode}');
+      debugPrint('🔐 Backend response: ${response.data}');
 
       return _handleAuthResponse(response);
     } on DioException catch (e) {
+      debugPrint('🔐 DioException: ${e.type} - ${e.message}');
+      debugPrint('🔐 Response: ${e.response?.data}');
       return _handleDioError(e);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('🔐 Google sign-in error: $e');
+      debugPrint('🔐 Stack trace: $stackTrace');
       return AuthResponse(
         success: false,
         message: 'Google sign-in failed: ${e.toString()}',

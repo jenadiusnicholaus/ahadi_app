@@ -6,6 +6,7 @@ import 'core/routes/app_routes.dart';
 import 'core/bindings/app_bindings.dart';
 import 'core/services/storage_service.dart';
 import 'core/services/deep_link_service.dart';
+import 'core/services/firebase_service.dart';
 import 'core/controllers/theme_controller.dart';
 
 void main() async {
@@ -16,6 +17,13 @@ void main() async {
     await dotenv.load(fileName: '.env');
   } catch (e) {
     debugPrint('Failed to load .env file: $e');
+  }
+
+  // Initialize Firebase
+  try {
+    await FirebaseService.initialize();
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
   }
 
   // Initialize storage service

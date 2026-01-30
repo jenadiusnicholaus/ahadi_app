@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import '../../features/auth/views/login_screen.dart';
 import '../../features/auth/views/otp_screen.dart';
+import '../../features/auth/views/whatsapp_login_screen.dart';
 import '../../features/home/views/home_screen.dart';
 import '../../features/events/views/dashboard_page.dart';
 import '../../features/events/views/create_event_screen.dart';
@@ -28,6 +29,8 @@ class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
   static const String otp = '/otp';
+  static const String whatsappLogin = '/auth/whatsapp';
+  static const String completeProfile = '/auth/complete-profile';
   static const String home = '/home';
   static const String profile = '/profile';
   static const String editProfile = '/profile/edit';
@@ -83,6 +86,18 @@ class AppPages {
     GetPage(
       name: AppRoutes.otp,
       page: () => const OtpScreen(),
+      transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.whatsappLogin,
+      page: () => const WhatsAppLoginScreen(),
+      binding: AuthBinding(),
+      transition: Transition.rightToLeft,
+    ),
+    GetPage(
+      name: AppRoutes.completeProfile,
+      page: () => const EditProfileScreen(),
+      binding: ProfileBinding(),
       transition: Transition.rightToLeft,
     ),
     GetPage(

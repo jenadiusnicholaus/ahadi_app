@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Ahadi</string>
-    <!-- Facebook App ID - Replace with your actual Facebook App ID -->
-    <string name="facebook_app_id">YOUR_FACEBOOK_APP_ID</string>
-    <string name="fb_login_protocol_scheme">fbYOUR_FACEBOOK_APP_ID</string>
-    <string name="facebook_client_token">YOUR_FACEBOOK_CLIENT_TOKEN</string>
+    <!-- Facebook App ID -->
+    <string name="facebook_app_id">1432442918538261</string>
+    <string name="fb_login_protocol_scheme">fb1432442918538261</string>
+    <string name="facebook_client_token">a3708918b406c39b9f8d4a40bb7c5d97</string>
 </resources>

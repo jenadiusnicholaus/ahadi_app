@@ -17,6 +17,8 @@ class AuthController extends GetxController {
   final Rx<User?> user = Rx<User?>(null);
   final RxString errorMessage = ''.obs;
   final RxBool isLoading = false.obs;
+  final RxBool isGoogleLoading = false.obs;
+  final RxBool isFacebookLoading = false.obs;
   final RxBool requiresPhoneLink = false.obs;
 
   // Computed property for auth check
@@ -71,24 +73,36 @@ class AuthController extends GetxController {
   Future<void> signInWithGoogle() async {
     try {
       isLoading.value = true;
+      isGoogleLoading.value = true;
       errorMessage.value = '';
 
       final response = await _authService.signInWithGoogle();
 
       isLoading.value = false;
+      isGoogleLoading.value = false;
 
       if (response.success) {
         if (response.requiresPhoneLink) {
           requiresPhoneLink.value = true;
+          user.value = response.user;
           status.value = AuthStatus.unauthenticated;
+
+          // Navigate to OTP screen for phone linking
           Get.snackbar(
             'Phone Required',
             'Please link your phone number to continue',
             snackPosition: SnackPosition.BOTTOM,
           );
+          await Future.delayed(const Duration(milliseconds: 300));
+          Get.toNamed(AppRoutes.otp);
         } else {
           user.value = response.user;
           status.value = AuthStatus.authenticated;
+
+          // Navigate to dashboard after successful Google sign-in
+          await Future.delayed(const Duration(milliseconds: 300));
+          Get.offAllNamed(AppRoutes.events);
+
           Get.snackbar(
             'Success',
             'Welcome back!',
@@ -106,6 +120,7 @@ class AuthController extends GetxController {
       }
     } catch (e) {
       isLoading.value = false;
+      isGoogleLoading.value = false;
       errorMessage.value = 'Google sign-in failed: ${e.toString()}';
       Get.snackbar(
         'Error',
@@ -118,29 +133,36 @@ class AuthController extends GetxController {
   // Facebook Sign-In
   Future<void> signInWithFacebook() async {
     isLoading.value = true;
+    isFacebookLoading.value = true;
     errorMessage.value = '';
 
     final response = await _authService.signInWithFacebook();
 
     isLoading.value = false;
+    isFacebookLoading.value = false;
 
     if (response.success) {
       if (response.requiresPhoneLink) {
         requiresPhoneLink.value = true;
+        user.value = response.user;
         status.value = AuthStatus.unauthenticated;
+
+        // Navigate to OTP screen for phone linking
         Get.snackbar(
           'Phone Required',
           'Please link your phone number to continue',
           snackPosition: SnackPosition.BOTTOM,
         );
+        await Future.delayed(const Duration(milliseconds: 300));
+        Get.toNamed(AppRoutes.otp);
       } else {
         user.value = response.user;
         status.value = AuthStatus.authenticated;
-        
+
         // Navigate to dashboard after successful Google sign-in
         await Future.delayed(const Duration(milliseconds: 300));
         Get.offAllNamed(AppRoutes.events);
-        
+
         Get.snackbar(
           'Success',
           'Welcome back!',
@@ -197,11 +219,11 @@ class AuthController extends GetxController {
     if (response.success) {
       user.value = response.user;
       status.value = AuthStatus.authenticated;
-      
+
       // Navigate to dashboard after successful verification
       await Future.delayed(const Duration(milliseconds: 300));
       Get.offAllNamed(AppRoutes.events);
-      
+
       Get.snackbar(
         'Success',
         'Phone verified successfully!',
@@ -230,11 +252,11 @@ class AuthController extends GetxController {
       requiresPhoneLink.value = false;
       user.value = response.user;
       status.value = AuthStatus.authenticated;
-      
+
       // Navigate to dashboard after successful phone linking
       await Future.delayed(const Duration(milliseconds: 300));
       Get.offAllNamed(AppRoutes.events);
-      
+
       Get.snackbar(
         'Success',
         'Phone linked successfully!',

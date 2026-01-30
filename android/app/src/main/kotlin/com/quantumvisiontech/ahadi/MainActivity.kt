@@ -1,4 +1,4 @@
-package com.example.ahadi
+package com.quantumvisiontech.ahadi
 
 import io.flutter.embedding.android.FlutterActivity
 

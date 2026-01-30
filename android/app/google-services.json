@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "420635386839",
+    "project_id": "ahadi-af7dc",
+    "storage_bucket": "ahadi-af7dc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:420635386839:android:4030e03504e45fb27fe192",
+        "android_client_info": {
+          "package_name": "com.quantumvisiontech.ahadi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbHTuEJtFf669S04edYyPP0zfqAc6hI8o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
