@@ -1,17 +1,22 @@
+import 'package:ahadi/core/config/environment.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
-  // Base URL
-  static String get apiBaseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000/api/v1';
+  // Base URL - uses EnvironmentConfig to select per-environment value
+  static String get apiBaseUrl => EnvironmentConfig.apiBaseUrl.isNotEmpty
+      ? EnvironmentConfig.apiBaseUrl
+      : 'https://ahadiapi.quantumvision-tech.com/api/v1';
 
   // WebSocket Base URL for real-time features
   static String get websocketBaseUrl =>
-      dotenv.env['WEBSOCKET_BASE_URL'] ?? 'ws://localhost:8001';
+      EnvironmentConfig.websocketBaseUrl.isNotEmpty
+          ? EnvironmentConfig.websocketBaseUrl
+          : 'ws://162.0.233.47:8005';
 
   // Web App Base URL for sharing links
-  static String get webAppBaseUrl =>
-      dotenv.env['WEB_APP_BASE_URL'] ?? 'https://ahadi.app';
+  static String get webAppBaseUrl => EnvironmentConfig.webAppBaseUrl.isNotEmpty
+      ? EnvironmentConfig.webAppBaseUrl
+      : 'https://ahadi.app';
 
   // Environment: sandbox or production
   static String get environment => dotenv.env['APP_ENVIRONMENT'] ?? 'sandbox';

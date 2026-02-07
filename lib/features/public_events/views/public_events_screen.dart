@@ -1979,29 +1979,80 @@ class PublicEventsScreen extends StatelessWidget {
   }
 
   Widget _buildErrorState(String error, VoidCallback onRetry) {
+    // Parse error for user-friendly message
+    String userFriendlyMessage = 'We couldn\'t load the events right now';
+    String suggestion = 'Please check your internet connection and try again';
+
+    if (error.toLowerCase().contains('connection') ||
+        error.toLowerCase().contains('network') ||
+        error.toLowerCase().contains('socket')) {
+      userFriendlyMessage = 'No internet connection';
+      suggestion = 'Please check your network settings and try again';
+    } else if (error.toLowerCase().contains('timeout')) {
+      userFriendlyMessage = 'Connection timed out';
+      suggestion = 'The server is taking too long to respond. Please try again';
+    } else if (error.toLowerCase().contains('server') ||
+        error.toLowerCase().contains('500')) {
+      userFriendlyMessage = 'Server error';
+      suggestion =
+          'Our servers are experiencing issues. Please try again later';
+    }
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 64, color: AppColors.error),
-            const SizedBox(height: 16),
-            const Text(
-              'Something went wrong',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.cloud_off_rounded,
+                size: 56,
+                color: AppColors.error.withValues(alpha: 0.8),
+              ),
             ),
             const SizedBox(height: 24),
+            Text(
+              userFriendlyMessage,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A2E),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              suggestion,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              label: const Text('Try Again'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
             ),
           ],
         ),
@@ -2010,30 +2061,71 @@ class PublicEventsScreen extends StatelessWidget {
   }
 
   Widget _buildEmptyState(PublicEventsController controller) {
+    final hasFilters =
+        controller.searchQuery.value.isNotEmpty ||
+        controller.selectedEventTypeId.value != null;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.event_busy, size: 64, color: AppColors.textSecondary),
-            const SizedBox(height: 16),
-            const Text(
-              'No events found',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                hasFilters
+                    ? Icons.search_off_rounded
+                    : Icons.event_note_rounded,
+                size: 56,
+                color: AppColors.primary.withValues(alpha: 0.7),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 24),
             Text(
-              'Try a different search or category',
-              style: TextStyle(color: AppColors.textSecondary),
+              hasFilters ? 'No matching events' : 'No events yet',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A2E),
+              ),
+              textAlign: TextAlign.center,
             ),
-            if (controller.searchQuery.value.isNotEmpty ||
-                controller.selectedEventTypeId.value != null) ...[
-              const SizedBox(height: 24),
+            const SizedBox(height: 12),
+            Text(
+              hasFilters
+                  ? 'We couldn\'t find any events matching your search.\nTry adjusting your filters or search terms.'
+                  : 'There are no events available at the moment.\nCheck back later for upcoming events!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            if (hasFilters) ...[
+              const SizedBox(height: 28),
               OutlinedButton.icon(
                 onPressed: controller.clearFilters,
-                icon: const Icon(Icons.clear),
-                label: const Text('Clear filters'),
+                icon: const Icon(Icons.filter_alt_off_rounded, size: 20),
+                label: const Text('Clear All Filters'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.5),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ],
           ],

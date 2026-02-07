@@ -10,7 +10,7 @@ class PublicEventsController extends GetxController {
 
   // Paging controller for infinite scroll
   late PagingController<int, EventModel> pagingController;
-  
+
   // Track if controller is initialized
   bool _isInitialized = false;
 
@@ -38,10 +38,10 @@ class PublicEventsController extends GetxController {
     _initializePagingController();
     loadInitialData();
   }
-  
+
   void _initializePagingController() {
     if (_isInitialized) return; // Prevent double initialization
-    
+
     pagingController = PagingController<int, EventModel>(firstPageKey: 1);
     pagingController.addPageRequestListener((pageKey) {
       _fetchPage(pageKey);
@@ -56,24 +56,24 @@ class PublicEventsController extends GetxController {
       loadInitialData();
     }
   }
-  
+
   /// Call this when returning to the screen to ensure proper state
   void ensureLoaded() {
     // Ensure initialized
     if (!_isInitialized) {
       _initializePagingController();
     }
-    
+
     // Always ensure event types are loaded
     if (eventTypes.isEmpty) {
       loadEventTypes();
     }
-    
+
     // Check various states that need refresh
     if (_isInitialized) {
       final hasItems = pagingController.itemList?.isNotEmpty ?? false;
       final hasError = pagingController.error != null;
-      
+
       // If there was an error, retry
       if (hasError) {
         pagingController.retryLastFailedRequest();
@@ -98,7 +98,7 @@ class PublicEventsController extends GetxController {
   Future<void> _fetchPage(int pageKey) async {
     // Check if controller was disposed
     if (!_isInitialized) return;
-    
+
     try {
       final response = await _publicEventService.getPublicEvents(
         page: pageKey,
@@ -119,7 +119,22 @@ class PublicEventsController extends GetxController {
     } catch (error) {
       print('Error fetching page $pageKey: $error');
       if (_isInitialized) {
-        pagingController.error = error;
+        // Provide user-friendly error message
+        String userError = 'Unable to load events. Please try again.';
+        final errorStr = error.toString().toLowerCase();
+
+        if (errorStr.contains('connection') ||
+            errorStr.contains('network') ||
+            errorStr.contains('socket') ||
+            errorStr.contains('failed host lookup')) {
+          userError = 'No internet connection';
+        } else if (errorStr.contains('timeout')) {
+          userError = 'Connection timed out';
+        } else if (errorStr.contains('server') || errorStr.contains('500')) {
+          userError = 'Server error. Please try again later.';
+        }
+
+        pagingController.error = userError;
       }
     }
   }
