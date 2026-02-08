@@ -2926,13 +2926,21 @@ class _HeroButtonState extends State<_HeroButton> {
         child: widget.isPrimary
             ? ElevatedButton.icon(
                 onPressed: widget.onPressed,
-                icon: Icon(widget.icon, size: 20),
-                label: Text(widget.text),
+                icon: Icon(widget.icon, size: 22, color: AppColors.primary),
+                label: Text(
+                  widget.text,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                    letterSpacing: 0.2,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: _isHovered ? 8 : 0,
-                  shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.primary,
+                  elevation: _isHovered ? 10 : 4,
+                  shadowColor: Colors.black26,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 28,
                     vertical: 18,
@@ -2944,15 +2952,22 @@ class _HeroButtonState extends State<_HeroButton> {
               )
             : OutlinedButton.icon(
                 onPressed: widget.onPressed,
-                icon: Icon(widget.icon, size: 20),
-                label: Text(widget.text),
+                icon: Icon(widget.icon, size: 22, color: Colors.white),
+                label: Text(
+                  widget.text,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.2,
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: _isHovered ? 0.18 : 0.08),
                   foregroundColor: Colors.white,
                   side: BorderSide(
-                    color: _isHovered
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.4),
-                    width: 1.5,
+                    color: Colors.white,
+                    width: 2,
                   ),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 28,

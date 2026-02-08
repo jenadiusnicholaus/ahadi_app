@@ -1,0 +1,40 @@
+==========================================
+PRODUCTION KEYSTORE FINGERPRINTS
+==========================================
+
+Keystore: android/upload-keystore.jks
+Alias: upload
+
+SHA-1:
+28:76:F5:61:BF:BB:50:41:41:E1:E8:F5:49:28:A0:73:BF:0A:46:E9
+
+SHA-256:
+32:D8:02:82:47:51:84:D5:8D:90:8A:C1:08:FB:4E:E4:C2:42:CB:97:A8:10:DE:A9:FF:3E:A4:8E:49:24:FF:0E
+
+Package Name: com.quantumvisiontech.ahadi
+
+==========================================
+HOW TO ADD THESE TO FIREBASE
+==========================================
+
+1. Go to: https://console.firebase.google.com/
+2. Select project: ahadi-af7dc
+3. Click ⚙️ Settings → Project settings
+4. Scroll to "Your apps" section
+5. Find Android app: com.quantumvisiontech.ahadi
+6. Click "Add fingerprint" button
+7. Paste SHA-1: 28:76:F5:61:BF:BB:50:41:41:E1:E8:F5:49:28:A0:73:BF:0A:46:E9
+8. Click "Add fingerprint" again
+9. Paste SHA-256: 32:D8:02:82:47:51:84:D5:8D:90:8A:C1:08:FB:4E:E4:C2:42:CB:97:A8:10:DE:A9:FF:3E:A4:8E:49:24:FF:0E
+10. Click "Save"
+11. Download updated google-services.json
+12. Replace android/app/google-services.json
+
+==========================================
+COMMAND TO GET FINGERPRINTS AGAIN
+==========================================
+
+cd android
+/Applications/Android\ Studio.app/Contents/jbr/Contents/Home/bin/keytool -list -v -keystore upload-keystore.jks -alias upload -storepass ahadi2024 -keypass ahadi2024
+
+Then look for lines starting with "SHA1:" and "SHA256:"

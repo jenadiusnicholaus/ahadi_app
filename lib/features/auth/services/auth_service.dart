@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -20,11 +21,15 @@ class AuthService {
     required StorageService storageService,
   }) : _apiService = apiService,
        _storageService = storageService {
+    // For Android: Use Android client ID or let it use google-services.json
+    // For iOS: Use iOS client ID if provided
     _googleSignIn = GoogleSignIn(
       scopes: ['email', 'profile'],
-      clientId: AppConfig.googleIosClientId.isNotEmpty
+      clientId: Platform.isIOS && AppConfig.googleIosClientId.isNotEmpty
           ? AppConfig.googleIosClientId
-          : null,
+          : (Platform.isAndroid && AppConfig.googleClientId.isNotEmpty
+              ? AppConfig.googleClientId
+              : null),
     );
   }
 
